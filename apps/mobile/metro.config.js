@@ -15,6 +15,9 @@ config.resolver.nodeModulesPaths = [
   path.resolve(projectRoot, 'node_modules'),
   path.resolve(workspaceRoot, 'node_modules'),
 ];
-config.resolver.disableHierarchicalLookup = true;
+// Hierarchical lookup must stay ON so Metro walks up the dir tree from
+// any file to find hoisted deps (e.g. expo-modules-core at root node_modules
+// while expo is in apps/mobile/node_modules).
+config.resolver.disableHierarchicalLookup = false;
 
 module.exports = config;
