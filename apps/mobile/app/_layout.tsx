@@ -38,8 +38,6 @@ export default function RootLayout() {
   });
   const [fontTimedOut, setFontTimedOut] = useState(false);
 
-  // Fail-safe: if fonts don't load in 4s (network issue, bad CDN, etc.),
-  // proceed anyway with system fonts so the app doesn't hang on splash.
   useEffect(() => {
     const t = setTimeout(() => setFontTimedOut(true), 4000);
     return () => clearTimeout(t);
@@ -49,9 +47,7 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (ready) SplashScreen.hideAsync().catch(() => {});
-    if (fontError && __DEV__) console.warn('Font load error:', fontError);
-    if (fontTimedOut && !fontsLoaded && __DEV__) console.warn('Fonts timed out; falling back to system fonts');
-  }, [ready, fontError, fontTimedOut, fontsLoaded]);
+  }, [ready]);
 
   if (!ready) return null;
 
@@ -62,6 +58,7 @@ export default function RootLayout() {
           <StatusBar style="dark" />
           <AuthGate>
             <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="index" />
               <Stack.Screen name="(auth)" />
               <Stack.Screen name="(app)" />
             </Stack>
