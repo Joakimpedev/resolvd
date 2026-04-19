@@ -1,0 +1,355 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ──────────────────────────────────────────────────────────────
+// Better Auth tables (User/Account/Session/Verification).
+// Declared in Prisma so our queries are typed.
+// ──────────────────────────────────────────────────────────────
+
+model User {
+  id               String    @id @default(cuid())
+  email            String    @unique
+  emailVerified    Boolean   @default(false)
+  name             String
+  image            String?
+  role             UserRole  @default(EMPLOYEE)
+  companyId        String?
+  company          Company?  @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  avatarInitial    String
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  deletedAt        DateTime?
+
+  accounts         Account[]
+  sessions         Session[]
+  invitationsMade  Invitation[]     @relation("invitedBy")
+  tags             UserTag[]
+  postReads        PostRead[]
+  postBookmarks    PostBookmark[]
+  lessonProgress   LessonProgress[]
+  comments         Comment[]
+  requestsCreated  Request[]
+  projectMembers   ProjectMember[]
+  authoredPosts    Post[]           @relation("authorPosts")
+  userLevel        UserLevel?
+  onboardingDone   Boolean          @default(false)
+
+  @@index([companyId])
+  @@index([deletedAt])
+}
+
+enum UserRole {
+  ADMIN
+  OWNER
+  EMPLOYEE
+}
+
+model Account {
+  id                    String   @id @default(cuid())
+  userId                String
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId             String
+  providerId            String
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@unique([providerId, accountId])
+  @@index([userId])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  expiresAt DateTime
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([token])
+}
+
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+}
+
+// ──────────────────────────────────────────────────────────────
+// Domain models
+// ──────────────────────────────────────────────────────────────
+
+model Company {
+  id        String   @id @default(cuid())
+  name      String
+  industry  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users       User[]
+  projects    Project[]
+  invitations Invitation[]
+  requests    Request[]
+  solutions   Solution[]
+
+  @@index([name])
+}
+
+model Tag {
+  id   String  @id @default(cuid())
+  name String  @unique
+  kind TagKind @default(INDUSTRY)
+
+  users UserTag[]
+  posts Post[]    @relation("PostTags")
+
+  @@index([kind])
+}
+
+enum TagKind {
+  INDUSTRY
+  CUSTOM
+}
+
+model UserTag {
+  userId String
+  tagId  String
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tag    Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([userId, tagId])
+  @@index([tagId])
+}
+
+model Project {
+  id          String        @id @default(cuid())
+  companyId   String
+  company     Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  status      ProjectStatus @default(ACTIVE)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  members ProjectMember[]
+  posts   Post[]          @relation("ProjectPosts")
+
+  @@index([companyId])
+}
+
+enum ProjectStatus {
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+model ProjectMember {
+  projectId String
+  userId    String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  addedAt   DateTime @default(now())
+
+  @@id([projectId, userId])
+  @@index([userId])
+}
+
+model Post {
+  id               String       @id @default(cuid())
+  kind             PostKind
+  scopeType        ScopeType
+  projectId        String?
+  project          Project?     @relation("ProjectPosts", fields: [projectId], references: [id], onDelete: Cascade)
+  tags             Tag[]        @relation("PostTags")
+  title            String
+  body             String       @db.Text
+  category         String?
+  readingMinutes   Int?
+  lessonLevel      LessonLevel?
+  lessonOrder      Int?
+  commentsEnabled  Boolean      @default(false)
+  publishedAt      DateTime?
+  authorUserId     String
+  author           User         @relation("authorPosts", fields: [authorUserId], references: [id])
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  reads     PostRead[]
+  bookmarks PostBookmark[]
+  progress  LessonProgress[]
+  comments  Comment[]
+
+  @@index([kind, publishedAt])
+  @@index([lessonLevel, lessonOrder])
+  @@index([projectId])
+  @@index([scopeType])
+  @@index([authorUserId])
+}
+
+enum PostKind {
+  ARTICLE
+  LESSON
+  UPDATE
+  BROADCAST
+}
+
+enum ScopeType {
+  GLOBAL
+  TAG
+  PROJECT
+}
+
+enum LessonLevel {
+  BEGINNER
+  INTER
+  ADVANCED
+}
+
+model PostRead {
+  userId String
+  postId String
+  readAt DateTime @default(now())
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post   Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@id([userId, postId])
+  @@index([postId])
+}
+
+model PostBookmark {
+  userId       String
+  postId       String
+  bookmarkedAt DateTime @default(now())
+  user         User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post         Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@id([userId, postId])
+  @@index([postId])
+}
+
+model LessonProgress {
+  userId      String
+  postId      String
+  completedAt DateTime @default(now())
+  user        User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post        Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@id([userId, postId])
+  @@index([postId])
+}
+
+model UserLevel {
+  userId String      @id
+  level  LessonLevel
+  setAt  DateTime    @default(now())
+  user   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
+  body      String   @db.Text
+  createdAt DateTime @default(now())
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+}
+
+model Request {
+  id              String         @id @default(cuid())
+  companyId       String
+  company         Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  title           String
+  description     String         @db.Text
+  status          RequestStatus  @default(I_ARBEID)
+  createdByUserId String
+  createdBy       User           @relation(fields: [createdByUserId], references: [id])
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([companyId, status])
+  @@index([createdByUserId])
+}
+
+enum RequestStatus {
+  I_ARBEID
+  VENTER_PA_DEG
+  FERDIG
+}
+
+model Solution {
+  id        String         @id @default(cuid())
+  companyId String
+  company   Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name      String
+  subtitle  String?
+  status    SolutionStatus @default(ACTIVE)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  usages    SolutionUsage[]
+
+  @@index([companyId])
+  @@index([status])
+}
+
+enum SolutionStatus {
+  ACTIVE
+  INACTIVE
+}
+
+model SolutionUsage {
+  id         String   @id @default(cuid())
+  solutionId String
+  solution   Solution @relation(fields: [solutionId], references: [id], onDelete: Cascade)
+  usedAt     DateTime @default(now())
+
+  @@index([solutionId, usedAt])
+}
+
+model Invitation {
+  id                 String             @id @default(cuid())
+  companyId          String
+  company            Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invitedIdentifier  String
+  invitedByUserId    String
+  invitedBy          User               @relation("invitedBy", fields: [invitedByUserId], references: [id])
+  status             InvitationStatus   @default(PENDING)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  resolvedAt         DateTime?
+  resolvedByAdminId  String?
+
+  @@index([companyId, status])
+  @@index([invitedIdentifier])
+}
+
+enum InvitationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  REDEEMED
+}

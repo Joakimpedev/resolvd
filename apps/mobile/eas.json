@@ -1,0 +1,32 @@
+{
+  "cli": {
+    "version": ">= 7.0.0",
+    "appVersionSource": "local"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "ios": { "simulator": true }
+    },
+    "preview": {
+      "distribution": "internal",
+      "ios": { "simulator": false }
+    },
+    "production": {
+      "autoIncrement": "buildNumber",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://CHANGE-ME-TO-RAILWAY-API-URL.up.railway.app"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "appleId": "CHANGE-ME@apple-id.com",
+        "ascAppId": "CHANGE-ME-apple-app-store-connect-id",
+        "appleTeamId": "CHANGE-ME-team-id"
+      }
+    }
+  }
+}
