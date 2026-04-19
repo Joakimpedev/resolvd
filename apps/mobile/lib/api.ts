@@ -1,5 +1,5 @@
 import { config } from './config';
-import { getBearerToken } from './auth';
+import { getBearerToken, setBearerToken } from './auth';
 
 const DEFAULT_TIMEOUT_MS = 15_000;
 
@@ -39,6 +39,10 @@ export async function api<T>(path: string, opts: ApiOptions = {}): Promise<T> {
       },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
+
+    // Persist bearer token from Better Auth's set-auth-token header.
+    const newToken = res.headers.get('set-auth-token');
+    if (newToken) await setBearerToken(newToken);
 
     if (!res.ok) {
       const errorBody = await res.json().catch(() => ({ error: res.statusText }));
