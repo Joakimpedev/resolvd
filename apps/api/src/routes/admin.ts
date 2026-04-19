@@ -47,21 +47,109 @@ adminRoutes.use('*', async (c, next) => {
   await next();
 });
 
+// ─── Companies (bootstrap helper until Directus is set up) ─────────────
+const createCompanySchema = z.object({
+  name: z.string().min(1).max(200),
+  industry: z.string().min(1).max(100),
+});
+
+adminRoutes.get('/companies', async (c) => {
+  const companies = await prisma.company.findMany({
+    orderBy: { createdAt: 'desc' },
+    select: { id: true, name: true, industry: true, createdAt: true },
+  });
+  return c.json({ companies });
+});
+
+adminRoutes.post('/companies', async (c) => {
+  const body = await c.req.json();
+  const parsed = createCompanySchema.safeParse(body);
+  if (!parsed.success) return c.json({ error: parsed.error.format() }, 400);
+
+  const company = await prisma.company.create({ data: parsed.data });
+
+  // Auto-create an INDUSTRY tag matching the company's industry (for Feed filtering later).
+  await prisma.tag.upsert({
+    where: { name: parsed.data.industry },
+    update: {},
+    create: { name: parsed.data.industry, kind: 'INDUSTRY' },
+  });
+
+  return c.json({ company });
+});
+
+adminRoutes.get('/new-company-form', (c) => c.html(`<!doctype html><html><head><meta charset="utf-8"><title>Ny bedrift</title>
+<style>body{font-family:sans-serif;padding:24px;max-width:480px;margin:0 auto}label{display:block;margin:4px 0 2px;font-size:12px;color:#6B6558}input{display:block;width:100%;padding:8px;margin-bottom:12px;font-size:14px;box-sizing:border-box}button{padding:10px 16px;background:#2D6A4F;color:white;border:0;border-radius:6px;cursor:pointer}a{color:#2D6A4F}table{border-collapse:collapse;width:100%;margin-top:24px;font-size:13px}td,th{border:1px solid #E8E2D4;padding:8px;text-align:left}code{background:#F5F1E8;padding:2px 6px;border-radius:4px}</style>
+</head><body>
+<h2>Ny bedrift</h2>
+<p><a href="/admin/new-user-form">→ Lag bruker i stedet</a></p>
+<form id="f">
+  <label>Bedriftsnavn</label><input name="name" required>
+  <label>Bransje (f.eks. "Rørleggere", "Frisører")</label><input name="industry" required>
+  <button>Opprett bedrift</button>
+  <p id="msg" style="margin-top:12px"></p>
+</form>
+<h3>Eksisterende bedrifter</h3>
+<table id="t"><thead><tr><th>ID (kopier denne)</th><th>Navn</th><th>Bransje</th></tr></thead><tbody></tbody></table>
+<script>
+  async function load() {
+    const r = await fetch('/admin/companies', { credentials: 'include' });
+    if (!r.ok) return;
+    const { companies } = await r.json();
+    const tb = document.querySelector('#t tbody');
+    tb.innerHTML = companies.map(c => \`<tr><td><code>\${c.id}</code></td><td>\${c.name}</td><td>\${c.industry}</td></tr>\`).join('');
+  }
+  document.getElementById('f').onsubmit = async (e) => {
+    e.preventDefault();
+    const data = Object.fromEntries(new FormData(e.target).entries());
+    const res = await fetch('/admin/companies', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(data), credentials:'include',
+    });
+    const msg = document.getElementById('msg');
+    if (res.ok) {
+      const { company } = await res.json();
+      msg.innerHTML = 'Bedrift opprettet. ID: <code>' + company.id + '</code> (kopier denne til "Lag bruker"-skjemaet)';
+      msg.style.color = '#2D6A4F';
+      e.target.reset();
+      load();
+    } else {
+      const b = await res.text();
+      msg.textContent = 'Feil: ' + b;
+      msg.style.color = '#7A4F0E';
+    }
+  };
+  load();
+</script>
+</body></html>`));
+
 adminRoutes.get('/new-user-form', (c) => c.html(`<!doctype html><html><head><meta charset="utf-8"><title>Ny bruker</title>
 <style>body{font-family:sans-serif;padding:24px;max-width:480px;margin:0 auto}label{display:block;margin:4px 0 2px;font-size:12px;color:#6B6558}input,select{display:block;width:100%;padding:8px;margin-bottom:12px;font-size:14px;box-sizing:border-box}button{padding:10px 16px;background:#2D6A4F;color:white;border:0;border-radius:6px;cursor:pointer}</style>
 </head><body>
 <h2>Ny bruker</h2>
+<p><a href="/admin/new-company-form">→ Lag bedrift først</a></p>
 <form id="f">
   <label>E-post</label><input name="email" type="email" required>
   <label>Passord (midlertidig)</label><input name="password" type="text" required minlength="8">
   <label>Navn</label><input name="name" required>
   <label>Avatar-bokstav (1-2 tegn)</label><input name="avatarInitial" maxlength="2" required>
-  <label>Company ID (fra Directus)</label><input name="companyId" required>
+  <label>Bedrift</label><select name="companyId" id="companySelect" required></select>
   <label>Rolle</label><select name="role"><option value="OWNER">Eier</option><option value="EMPLOYEE">Ansatt</option></select>
   <button>Opprett bruker</button>
   <p id="msg" style="margin-top:12px"></p>
 </form>
 <script>
+  async function loadCompanies() {
+    const r = await fetch('/admin/companies', { credentials: 'include' });
+    if (!r.ok) return;
+    const { companies } = await r.json();
+    const sel = document.getElementById('companySelect');
+    if (!companies.length) {
+      sel.innerHTML = '<option value="">Ingen bedrifter — opprett en først</option>';
+    } else {
+      sel.innerHTML = companies.map(c => '<option value="' + c.id + '">' + c.name + ' (' + c.industry + ')</option>').join('');
+    }
+  }
   document.getElementById('f').onsubmit = async (e) => {
     e.preventDefault();
     const data = Object.fromEntries(new FormData(e.target).entries());
@@ -70,9 +158,10 @@ adminRoutes.get('/new-user-form', (c) => c.html(`<!doctype html><html><head><met
       body: JSON.stringify(data), credentials:'include',
     });
     const msg = document.getElementById('msg');
-    if (res.ok) { msg.textContent = 'Bruker opprettet'; msg.style.color = '#2D6A4F'; e.target.reset(); }
+    if (res.ok) { msg.textContent = 'Bruker opprettet'; msg.style.color = '#2D6A4F'; e.target.reset(); loadCompanies(); }
     else { const b = await res.text(); msg.textContent = 'Feil: ' + b; msg.style.color = '#7A4F0E'; }
   };
+  loadCompanies();
 </script>
 </body></html>`));
 
