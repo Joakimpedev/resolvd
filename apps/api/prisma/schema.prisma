@@ -21,7 +21,7 @@ model User {
   role             UserRole  @default(EMPLOYEE)
   companyId        String?
   company          Company?  @relation(fields: [companyId], references: [id], onDelete: SetNull)
-  avatarInitial    String
+  avatarInitial    String    @default("?")
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
   deletedAt        DateTime?
