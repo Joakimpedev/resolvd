@@ -5,21 +5,50 @@ const prisma = new PrismaClient();
 
 function requireEnv(name: string): string {
   const v = process.env[name];
-  if (!v) throw new Error(`Missing required env var for seed: ${name}. Add it to apps/api/.env before running db:seed.`);
+  if (!v) throw new Error(`Missing required env var for seed: ${name}. Add it to the environment before running db:seed.`);
   return v;
 }
 
+function optionalEnv(name: string): string | undefined {
+  return process.env[name] || undefined;
+}
+
+/**
+ * Seed is structured into three tiers:
+ *
+ *  1. ALWAYS seeded (production + dev)
+ *     - The admin user (Marius) — required, bootstraps the admin dashboard
+ *     - Minimal global content: 3 example articles + 12 lessons per level
+ *       so the mobile app has something to show before Marius writes his own.
+ *       Marius can edit/delete these via Directus once it's deployed.
+ *
+ *  2. OPTIONALLY seeded (only when SEED_DEMO_* env vars are present)
+ *     - Demo company "Rørleggeren AS" + owner + employee
+ *     - Demo requests, solutions with usage, pending invitation
+ *     This is for local development only; do not set these on production.
+ *
+ *  3. NEVER seeded
+ *     - Real customer users, companies, or content. Marius creates those
+ *       through the admin dashboard once he has paying customers.
+ */
 async function seed() {
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('Refusing to seed in production. NODE_ENV=production is set.');
-  }
+  const isProd = process.env.NODE_ENV === 'production';
 
   const adminEmail    = requireEnv('SEED_ADMIN_EMAIL');
   const adminPassword = requireEnv('SEED_ADMIN_PASSWORD');
-  const ownerEmail    = requireEnv('SEED_DEMO_OWNER_EMAIL');
-  const ownerPassword = requireEnv('SEED_DEMO_OWNER_PASSWORD');
-  const employeeEmail    = requireEnv('SEED_DEMO_EMPLOYEE_EMAIL');
-  const employeePassword = requireEnv('SEED_DEMO_EMPLOYEE_PASSWORD');
+
+  const ownerEmail       = optionalEnv('SEED_DEMO_OWNER_EMAIL');
+  const ownerPassword    = optionalEnv('SEED_DEMO_OWNER_PASSWORD');
+  const employeeEmail    = optionalEnv('SEED_DEMO_EMPLOYEE_EMAIL');
+  const employeePassword = optionalEnv('SEED_DEMO_EMPLOYEE_PASSWORD');
+
+  const seedDemo = !!(ownerEmail && ownerPassword && employeeEmail && employeePassword);
+
+  if (isProd && seedDemo) {
+    throw new Error(
+      'Refusing to seed demo users in production. Remove SEED_DEMO_* env vars from your production deploy.',
+    );
+  }
 
   // 1. Admin
   const existingAdmin = await prisma.user.findUnique({ where: { email: adminEmail } });
@@ -32,74 +61,35 @@ async function seed() {
   }
   const admin = await prisma.user.findUniqueOrThrow({ where: { email: adminEmail } });
 
-  // 2. Demo company + industry tag
-  let company = await prisma.company.findFirst({ where: { name: 'Rørleggeren AS' } });
-  if (!company) {
-    company = await prisma.company.create({ data: { name: 'Rørleggeren AS', industry: 'Rørleggere' } });
-  }
-  const tag = await prisma.tag.upsert({
-    where: { name: 'Rørleggere' },
-    update: {},
-    create: { name: 'Rørleggere', kind: 'INDUSTRY' },
-  });
-
-  // 3. Owner
-  const existingOwner = await prisma.user.findUnique({ where: { email: ownerEmail } });
-  if (!existingOwner) {
-    await auth.api.signUpEmail({ body: { email: ownerEmail, password: ownerPassword, name: 'Marius Lauvås' } });
-    await prisma.user.update({
-      where: { email: ownerEmail },
-      data: { role: UserRole.OWNER, avatarInitial: 'M', companyId: company.id },
-    });
-  }
-  const owner = await prisma.user.findUniqueOrThrow({ where: { email: ownerEmail } });
-  await prisma.userTag.upsert({
-    where:  { userId_tagId: { userId: owner.id, tagId: tag.id } },
-    update: {},
-    create: { userId: owner.id, tagId: tag.id },
-  });
-
-  // 4. Employee
-  const existingEmp = await prisma.user.findUnique({ where: { email: employeeEmail } });
-  if (!existingEmp) {
-    await auth.api.signUpEmail({ body: { email: employeeEmail, password: employeePassword, name: 'Jonas Berg' } });
-    await prisma.user.update({
-      where: { email: employeeEmail },
-      data: { role: UserRole.EMPLOYEE, avatarInitial: 'J', companyId: company.id },
-    });
-  }
-
-  // 5. Feed articles (Phase 4 data)
-  const postCount = await prisma.post.count({ where: { kind: 'ARTICLE' } });
-  if (postCount === 0) {
-    const article1 = await prisma.post.create({
+  // 2. Global articles (shown to everyone until Marius writes his own via admin)
+  const articleCount = await prisma.post.count({ where: { kind: 'ARTICLE' } });
+  if (articleCount === 0) {
+    await prisma.post.create({
       data: {
-        kind: 'ARTICLE', scopeType: 'TAG',
-        title: 'Automatisk tilbud på 30 sekunder',
-        body: 'Send inn jobbeskrivelse, få ferdig tilbud på mail. Bygget for rørleggere.',
-        category: 'Ny løsning', readingMinutes: 3,
+        kind: 'ARTICLE', scopeType: 'GLOBAL',
+        title: 'Velkommen til Resolvd',
+        body: 'Her får du oversikt over AI-løsningene vi bygger for deg, snakker med teamet vårt, og lærer hvordan AI kan jobbe for bedriften din.',
+        category: 'Nyheter', readingMinutes: 2,
         publishedAt: new Date(),
         authorUserId: admin.id,
-        tags: { connect: [{ id: tag.id }] },
-      },
-    });
-    const article2 = await prisma.post.create({
-      data: {
-        kind: 'ARTICLE', scopeType: 'TAG',
-        title: 'Slik sparer en rørlegger i Trondheim 8 timer/uke',
-        body: 'Kort case-studie om en AI-assistent som håndterer tilbudsforespørsler mens du er på jobb.',
-        category: 'Kundehistorie', readingMinutes: 5,
-        publishedAt: new Date(),
-        authorUserId: admin.id,
-        tags: { connect: [{ id: tag.id }] },
       },
     });
     await prisma.post.create({
       data: {
         kind: 'ARTICLE', scopeType: 'GLOBAL',
         title: 'Faktura-oppfølging som får betalt',
-        body: 'Ferdig prompt du kan kopiere. Tilpasset norsk tone og rørleggerbransjen.',
+        body: 'Ferdig prompt du kan kopiere. Tilpasset norsk tone og småbedrifter.',
         category: 'Prompt-bibliotek', readingMinutes: 2,
+        publishedAt: new Date(),
+        authorUserId: admin.id,
+      },
+    });
+    await prisma.post.create({
+      data: {
+        kind: 'ARTICLE', scopeType: 'GLOBAL',
+        title: 'Hvordan bruke AI i hverdagen på jobb',
+        body: 'En introduksjon til hvordan du kan spare tid med AI uten å bruke timer på å lære det.',
+        category: 'Bransje-tips', readingMinutes: 3,
         publishedAt: new Date(),
         authorUserId: admin.id,
       },
@@ -168,79 +158,119 @@ async function seed() {
     }
   }
 
-  // 7. Requests (Phase 5 data)
-  const reqCount = await prisma.request.count({ where: { companyId: company.id } });
-  if (reqCount === 0) {
-    await prisma.request.create({
-      data: {
-        companyId: company.id, createdByUserId: owner.id,
-        title: 'Endring på forsiden',
-        description: 'Legg til kundelogo nederst på hero-seksjonen.',
-        status: 'I_ARBEID',
-        updatedAt: new Date(Date.now() - 2 * 3600_000),
-      },
-    });
-    await prisma.request.create({
-      data: {
-        companyId: company.id, createdByUserId: owner.id,
-        title: 'Ny AI-løsning ønsket',
-        description: 'Vi trenger litt mer info før vi kan starte.',
-        status: 'VENTER_PA_DEG',
-        updatedAt: new Date(Date.now() - 24 * 3600_000),
-      },
-    });
-    await prisma.request.create({
-      data: {
-        companyId: company.id, createdByUserId: owner.id,
-        title: 'Oppdater åpningstider',
-        description: 'Endringen er live på siden.',
-        status: 'FERDIG',
-        updatedAt: new Date(Date.now() - 3 * 24 * 3600_000),
-      },
-    });
-    await prisma.request.create({
-      data: {
-        companyId: company.id, createdByUserId: owner.id,
-        title: 'Bytt hero-bilde',
-        description: 'Nytt bilde er på plass.',
-        status: 'FERDIG',
-        updatedAt: new Date(Date.now() - 7 * 24 * 3600_000),
-      },
-    });
-  }
-
-  // 8. Solutions + usage (Phase 7 data)
-  const solCount = await prisma.solution.count({ where: { companyId: company.id } });
-  if (solCount === 0) {
-    const tilbud = await prisma.solution.create({
-      data: { companyId: company.id, name: 'Tilbudsgenerator', subtitle: null, status: 'ACTIVE' },
-    });
-    const epost = await prisma.solution.create({
-      data: { companyId: company.id, name: 'E-post assistent', subtitle: 'Aktiv · 12 svar i går', status: 'ACTIVE' },
-    });
-    const now = Date.now();
-    for (let i = 0; i < 47; i++) {
-      await prisma.solutionUsage.create({ data: { solutionId: tilbud.id, usedAt: new Date(now - i * 3600_000) } });
+  // ──────────────────────────────────────────────────────────────
+  // OPTIONAL demo data (skipped when SEED_DEMO_* env vars are absent).
+  // Do NOT include these env vars on production Railway.
+  // ──────────────────────────────────────────────────────────────
+  if (seedDemo && ownerEmail && ownerPassword && employeeEmail && employeePassword) {
+    let company = await prisma.company.findFirst({ where: { name: 'Rørleggeren AS' } });
+    if (!company) {
+      company = await prisma.company.create({ data: { name: 'Rørleggeren AS', industry: 'Rørleggere' } });
     }
-    for (let i = 0; i < 12; i++) {
-      await prisma.solutionUsage.create({ data: { solutionId: epost.id, usedAt: new Date(now - 24 * 3600_000 + i * 1800_000) } });
-    }
-  }
-
-  // 9. Pending invitation
-  const invCount = await prisma.invitation.count({ where: { companyId: company.id } });
-  if (invCount === 0) {
-    await prisma.invitation.create({
-      data: {
-        companyId: company.id,
-        invitedByUserId: owner.id,
-        invitedIdentifier: 'kari@rorleggeren.no',
-        status: 'PENDING',
-      },
+    const tag = await prisma.tag.upsert({
+      where: { name: 'Rørleggere' },
+      update: {},
+      create: { name: 'Rørleggere', kind: 'INDUSTRY' },
     });
-  }
 
-  console.log(`Seed complete. Admin: ${adminEmail}. Owner: ${ownerEmail}. Employee: ${employeeEmail}.`);
+    const existingOwner = await prisma.user.findUnique({ where: { email: ownerEmail } });
+    if (!existingOwner) {
+      await auth.api.signUpEmail({ body: { email: ownerEmail, password: ownerPassword, name: 'Marius Lauvås' } });
+      await prisma.user.update({
+        where: { email: ownerEmail },
+        data: { role: UserRole.OWNER, avatarInitial: 'M', companyId: company.id },
+      });
+    }
+    const owner = await prisma.user.findUniqueOrThrow({ where: { email: ownerEmail } });
+    await prisma.userTag.upsert({
+      where:  { userId_tagId: { userId: owner.id, tagId: tag.id } },
+      update: {},
+      create: { userId: owner.id, tagId: tag.id },
+    });
+
+    const existingEmp = await prisma.user.findUnique({ where: { email: employeeEmail } });
+    if (!existingEmp) {
+      await auth.api.signUpEmail({ body: { email: employeeEmail, password: employeePassword, name: 'Jonas Berg' } });
+      await prisma.user.update({
+        where: { email: employeeEmail },
+        data: { role: UserRole.EMPLOYEE, avatarInitial: 'J', companyId: company.id },
+      });
+    }
+
+    // Industry-targeted demo articles
+    const industryArticleCount = await prisma.post.count({
+      where: { kind: 'ARTICLE', scopeType: 'TAG', tags: { some: { id: tag.id } } },
+    });
+    if (industryArticleCount === 0) {
+      const a1 = await prisma.post.create({
+        data: {
+          kind: 'ARTICLE', scopeType: 'TAG',
+          title: 'Automatisk tilbud på 30 sekunder',
+          body: 'Send inn jobbeskrivelse, få ferdig tilbud på mail. Bygget for rørleggere.',
+          category: 'Ny løsning', readingMinutes: 3,
+          publishedAt: new Date(),
+          authorUserId: admin.id,
+        },
+      });
+      await prisma.post.update({ where: { id: a1.id }, data: { tags: { connect: [{ id: tag.id }] } } });
+      const a2 = await prisma.post.create({
+        data: {
+          kind: 'ARTICLE', scopeType: 'TAG',
+          title: 'Slik sparer en rørlegger i Trondheim 8 timer/uke',
+          body: 'Kort case-studie om en AI-assistent som håndterer tilbudsforespørsler mens du er på jobb.',
+          category: 'Kundehistorie', readingMinutes: 5,
+          publishedAt: new Date(),
+          authorUserId: admin.id,
+        },
+      });
+      await prisma.post.update({ where: { id: a2.id }, data: { tags: { connect: [{ id: tag.id }] } } });
+    }
+
+    const reqCount = await prisma.request.count({ where: { companyId: company.id } });
+    if (reqCount === 0) {
+      await prisma.request.createMany({
+        data: [
+          { companyId: company.id, createdByUserId: owner.id, title: 'Endring på forsiden',    description: 'Legg til kundelogo nederst på hero-seksjonen.', status: 'I_ARBEID',      updatedAt: new Date(Date.now() - 2 * 3600_000) },
+          { companyId: company.id, createdByUserId: owner.id, title: 'Ny AI-løsning ønsket',   description: 'Vi trenger litt mer info før vi kan starte.',    status: 'VENTER_PA_DEG', updatedAt: new Date(Date.now() - 24 * 3600_000) },
+          { companyId: company.id, createdByUserId: owner.id, title: 'Oppdater åpningstider', description: 'Endringen er live på siden.',                     status: 'FERDIG',        updatedAt: new Date(Date.now() - 3 * 24 * 3600_000) },
+          { companyId: company.id, createdByUserId: owner.id, title: 'Bytt hero-bilde',        description: 'Nytt bilde er på plass.',                         status: 'FERDIG',        updatedAt: new Date(Date.now() - 7 * 24 * 3600_000) },
+        ],
+      });
+    }
+
+    const solCount = await prisma.solution.count({ where: { companyId: company.id } });
+    if (solCount === 0) {
+      const tilbud = await prisma.solution.create({
+        data: { companyId: company.id, name: 'Tilbudsgenerator', subtitle: null, status: 'ACTIVE' },
+      });
+      const epost = await prisma.solution.create({
+        data: { companyId: company.id, name: 'E-post assistent', subtitle: 'Aktiv · 12 svar i går', status: 'ACTIVE' },
+      });
+      const now = Date.now();
+      for (let i = 0; i < 47; i++) {
+        await prisma.solutionUsage.create({ data: { solutionId: tilbud.id, usedAt: new Date(now - i * 3600_000) } });
+      }
+      for (let i = 0; i < 12; i++) {
+        await prisma.solutionUsage.create({ data: { solutionId: epost.id, usedAt: new Date(now - 24 * 3600_000 + i * 1800_000) } });
+      }
+    }
+
+    const invCount = await prisma.invitation.count({ where: { companyId: company.id } });
+    if (invCount === 0) {
+      await prisma.invitation.create({
+        data: {
+          companyId: company.id,
+          invitedByUserId: owner.id,
+          invitedIdentifier: 'kari@rorleggeren.no',
+          status: 'PENDING',
+        },
+      });
+    }
+
+    console.log(`Seed complete. Admin: ${adminEmail}. Demo owner: ${ownerEmail}. Demo employee: ${employeeEmail}.`);
+  } else {
+    console.log(`Seed complete. Admin: ${adminEmail}. (Demo data skipped — SEED_DEMO_* env vars not set.)`);
+  }
 }
 
 seed().then(() => process.exit(0)).catch((e) => { console.error(e); process.exit(1); });
