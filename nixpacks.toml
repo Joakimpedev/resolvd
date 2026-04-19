@@ -1,0 +1,19 @@
+# Nixpacks config for Railway monorepo build.
+# Forces Node 20 LTS and runs the workspace-aware build from the repo root.
+
+providers = ["node"]
+
+[phases.setup]
+nixPkgs = ["nodejs_20", "openssl"]
+
+[phases.install]
+cmds = ["npm install"]
+
+[phases.build]
+cmds = [
+  "npm run db:generate --workspace=@resolvd/api",
+  "npm run build --workspace=@resolvd/api",
+]
+
+[start]
+cmd = "node apps/api/dist/index.js"

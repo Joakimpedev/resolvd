@@ -1,0 +1,9 @@
+[build]
+builder = "NIXPACKS"
+buildCommand = "npm install && npm run db:generate --workspace=@resolvd/api && npm run build --workspace=@resolvd/api"
+
+[deploy]
+startCommand = "node apps/api/dist/index.js"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
+healthcheckPath = "/health"
