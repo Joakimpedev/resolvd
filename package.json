@@ -13,6 +13,7 @@
     "db:seed": "npm run db:seed --workspace=@resolvd/api",
     "db:studio": "npm run db:studio --workspace=@resolvd/api",
     "db:generate": "npm run db:generate --workspace=@resolvd/api",
-    "typecheck": "npm run typecheck --workspaces --if-present"
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "postinstall": "node scripts/fix-expo-junction.mjs"
   }
 }
