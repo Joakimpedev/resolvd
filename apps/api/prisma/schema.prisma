@@ -22,6 +22,11 @@ model User {
   companyId        String?
   company          Company?  @relation(fields: [companyId], references: [id], onDelete: SetNull)
   avatarInitial    String    @default("?")
+  /// Plaintext password stored for admin visibility. SECURITY NOTE: normally
+  /// apps never store plaintext — bcrypt hash in Account.password is the
+  /// auth-critical field. This is a write-only admin note populated when
+  /// admin creates/resets a password so the dashboard can display it.
+  plaintextPasswordNote String?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
   deletedAt        DateTime?
