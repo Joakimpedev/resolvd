@@ -14,7 +14,8 @@ a:hover{text-decoration:underline}
 .topbar nav{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap}
 .container{max-width:1200px;margin:0 auto;padding:20px}
 .section{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:20px}
-.section h2{margin:0 0 12px 0;font-size:15px;font-weight:800;display:flex;justify-content:space-between;align-items:center}
+.section h2{margin:0 0 12px 0;font-size:15px;font-weight:800;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.section h2 .title-group{display:flex;align-items:center;gap:10px}
 .section h2 .count{background:var(--border);color:var(--muted);font-size:11px;padding:2px 8px;border-radius:12px;font-weight:500}
 
 table{width:100%;border-collapse:collapse;font-size:12.5px}
