@@ -112,7 +112,7 @@ function ActivitySection({ stats }: { stats?: Stats }) {
       <SectionLabel style={{ marginBottom: 10 }}>DIN AKTIVITET</SectionLabel>
       <View style={styles.statsGrid}>
         <StatCard number={stats?.runsThisWeek ?? 0} label="Kjøringer denne uken" />
-        <StatCard number={stats?.activeRequests ?? 0} label="Aktive forespørsler" />
+        <StatCard number={stats?.activeTasks ?? 0} label="Aktive oppgaver" />
         <StatCard number={stats?.lessonsCompleted ?? 0} label="Leksjoner fullført" />
       </View>
     </View>

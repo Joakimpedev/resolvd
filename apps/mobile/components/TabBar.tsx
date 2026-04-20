@@ -1,7 +1,7 @@
 import { View, Pressable, Text, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
-import { LayoutGrid, BookOpen, MessageCircle, User, LucideIcon } from 'lucide-react-native';
+import { LayoutGrid, BookOpen, ClipboardList, User, LucideIcon } from 'lucide-react-native';
 import { colors, layout, borders } from '@/theme/tokens';
 import { fontFamily } from '@/theme/typography';
 import { iconSizes, iconStrokeWidth } from '@/theme/icons';
@@ -10,14 +10,14 @@ import { lightHaptic } from '@/lib/haptics';
 const ICONS: Record<string, LucideIcon> = {
   feed:       LayoutGrid,
   laer:       BookOpen,
-  meldinger:  MessageCircle,
+  oppgaver:   ClipboardList,
   'min-side': User,
 };
 
 const LABELS: Record<string, string> = {
   feed: 'Feed',
   laer: 'Lær',
-  meldinger: 'Meldinger',
+  oppgaver: 'Oppgaver',
   'min-side': 'Min side',
 };
 

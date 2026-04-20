@@ -929,11 +929,39 @@ async function seed() {
     if (reqCount === 0) {
       await prisma.request.createMany({
         data: [
-          { companyId: company.id, createdByUserId: owner.id, title: 'Endring på forsiden',    description: 'Legg til kundelogo nederst på hero-seksjonen.', status: 'I_ARBEID',      updatedAt: new Date(Date.now() - 2 * 3600_000) },
-          { companyId: company.id, createdByUserId: owner.id, title: 'Ny løsning ønsket',      description: 'Vi trenger litt mer info før vi kan starte.',    status: 'VENTER_PA_DEG', updatedAt: new Date(Date.now() - 24 * 3600_000) },
-          { companyId: company.id, createdByUserId: owner.id, title: 'Oppdater åpningstider', description: 'Endringen er live på siden.',                     status: 'FERDIG',        updatedAt: new Date(Date.now() - 3 * 24 * 3600_000) },
-          { companyId: company.id, createdByUserId: owner.id, title: 'Bytt hero-bilde',        description: 'Nytt bilde er på plass.',                         status: 'FERDIG',        updatedAt: new Date(Date.now() - 7 * 24 * 3600_000) },
+          { companyId: company.id, createdByUserId: owner.id, title: 'Endring på forsiden',    description: 'Kan dere legge til kundelogo nederst på hero-seksjonen?', status: 'OPEN',     updatedAt: new Date(Date.now() - 2 * 3600_000) },
+          { companyId: company.id, createdByUserId: owner.id, title: 'Oppdater åpningstider', description: 'Har nye åpningstider — kan dere oppdatere?',              status: 'RESOLVED', updatedAt: new Date(Date.now() - 3 * 24 * 3600_000) },
         ],
+      });
+    }
+
+    const taskCount = await prisma.task.count({ where: { companyId: company.id } });
+    if (taskCount === 0) {
+      const demoTask = await prisma.task.create({
+        data: {
+          companyId: company.id,
+          createdByUserId: admin.id,
+          title: 'Ny nettside — fase 1',
+          descriptionMd: '# Ny nettside\n\nFørste fase: **design + landingsside**.\n\n- Ny hero-seksjon\n- Oppdatert fargepalett\n- Mobile-first layout\n\nEstimert leveranse: 2 uker.',
+          priceOre: 4500000,
+          status: 'I_ARBEID',
+          assignees: { create: [{ userId: owner.id }] },
+          priceViewers: { create: [{ userId: owner.id }] },
+          events: {
+            create: [
+              { header: 'Oppgave opprettet', body: 'Vi har startet arbeidet.', createdByUserId: admin.id },
+            ],
+          },
+        },
+      });
+      await prisma.taskEvent.create({
+        data: {
+          taskId: demoTask.id,
+          header: 'Wireframes ferdig',
+          body: 'Sendt over for godkjenning.',
+          createdByUserId: admin.id,
+          createdAt: new Date(Date.now() - 24 * 3600_000),
+        },
       });
     }
 

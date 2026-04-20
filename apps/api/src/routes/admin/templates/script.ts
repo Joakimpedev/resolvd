@@ -1,6 +1,6 @@
 export const SCRIPT = String.raw`
 // ─── State ─────────────────────────────────────────────────────
-const state = { users: [], companies: [], tags: [], posts: [], courses: [], requests: [], solutions: [] };
+const state = { users: [], companies: [], tags: [], posts: [], courses: [], requests: [], tasks: [], solutions: [] };
 
 // ─── Utilities ─────────────────────────────────────────────────
 function esc(s){ return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"}[c])); }
@@ -58,8 +58,25 @@ function renderAll(){
   renderTags();
   renderArticles();
   renderCourses();
+  renderTasks();
   renderRequests();
   renderSolutions();
+}
+
+function fmtNok(ore){
+  if (ore == null) return '<span class="small-muted">—</span>';
+  const kr = ore / 100;
+  return kr.toLocaleString('no-NO', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + ' kr';
+}
+function statusBadgeTask(s){
+  const map = { NY: 'neutral', I_ARBEID: 'green', FERDIG: 'neutral' };
+  const label = { NY: 'Ny', I_ARBEID: 'I arbeid', FERDIG: 'Ferdig' };
+  return '<span class="badge ' + (map[s] || 'neutral') + '">' + (label[s] || s) + '</span>';
+}
+function statusBadgeReq(s){
+  const map = { OPEN: 'green', PROMOTED: 'neutral', RESOLVED: 'neutral' };
+  const label = { OPEN: 'Åpen', PROMOTED: 'Promotert', RESOLVED: 'Løst' };
+  return '<span class="badge ' + (map[s] || 'neutral') + '">' + (label[s] || s) + '</span>';
 }
 
 function renderUsers(){
@@ -150,13 +167,38 @@ function renderRequests(){
     '<tr><td><details class="inline"><summary>' + esc(r.title) + '</summary><div class="body">' + esc(r.description) + '</div></details></td>' +
     '<td>' + esc(r.company) + '</td>' +
     '<td>' + esc(r.createdBy) + '</td>' +
-    '<td><select data-request-status="' + r.id + '">' +
-      '<option value="I_ARBEID"' + (r.status === 'I_ARBEID' ? ' selected' : '') + '>I arbeid</option>' +
-      '<option value="VENTER_PA_DEG"' + (r.status === 'VENTER_PA_DEG' ? ' selected' : '') + '>Venter på deg</option>' +
-      '<option value="FERDIG"' + (r.status === 'FERDIG' ? ' selected' : '') + '>Ferdig</option>' +
-    '</select></td>' +
-    '<td>' + fmtDate(r.updatedAt) + '</td></tr>'
-  ).join('') : '<tr><td colspan="5" class="empty">Ingen meldinger</td></tr>';
+    '<td>' + r.commentCount + '</td>' +
+    '<td>' + statusBadgeReq(r.status) + '</td>' +
+    '<td>' + fmtDate(r.updatedAt) + '</td>' +
+    '<td class="actions">' +
+      '<button class="btn secondary sm" data-open-request="' + r.id + '">Tråd</button> ' +
+      (r.status === 'OPEN' ? '<button class="btn sm" data-promote-request="' + r.id + '">Promoter</button> ' : '') +
+      (r.status === 'OPEN' ? '<button class="btn secondary sm" data-resolve-request="' + r.id + '">Lukk</button>' :
+        r.status === 'RESOLVED' ? '<button class="btn secondary sm" data-reopen-request="' + r.id + '">Åpne</button>' : '') +
+    '</td></tr>'
+  ).join('') : '<tr><td colspan="7" class="empty">Ingen forespørsler</td></tr>';
+}
+
+function renderTasks(){
+  document.getElementById('taskCount').textContent = state.tasks.length;
+  document.querySelector('#taskTable tbody').innerHTML = state.tasks.length ? state.tasks.map(t =>
+    '<tr>' +
+    '<td><details class="inline"><summary>' + esc(t.title) + '</summary>' +
+      '<div class="body"><pre style="white-space:pre-wrap;font-family:inherit">' + esc(t.descriptionMd || '(ingen beskrivelse)') + '</pre></div>' +
+    '</details></td>' +
+    '<td>' + esc(t.company?.name || '—') + '</td>' +
+    '<td>' + (t.assignees && t.assignees.length ?
+      t.assignees.map(a => '<span class="chip chip-company">' + esc(a.avatarInitial || '?') + ' ' + esc(a.name) + '</span>').join('') :
+      '<span class="small-muted">—</span>') + '</td>' +
+    '<td>' + fmtNok(t.priceOre) + '</td>' +
+    '<td>' + statusBadgeTask(t.status) + '</td>' +
+    '<td>' + (t.events?.length || 0) + '</td>' +
+    '<td>' + fmtDate(t.updatedAt) + '</td>' +
+    '<td class="actions">' +
+      '<button class="btn secondary sm" data-edit-task="' + t.id + '">Rediger</button> ' +
+      '<button class="btn danger sm" data-delete-task="' + t.id + '">Slett</button>' +
+    '</td></tr>'
+  ).join('') : '<tr><td colspan="8" class="empty">Ingen oppgaver. Opprett én via + Ny oppgave.</td></tr>';
 }
 
 function renderSolutions(){
@@ -651,6 +693,194 @@ async function openLessonModal(id, moduleId){
   });
 }
 
+// ─── Task modal (create + edit, with inline timeline editor) ──
+function openTaskModal(id, prefill){
+  const existing = id ? state.tasks.find(t => t.id === id) : null;
+  const initialCompanyId = existing?.company?.id || prefill?.companyId || '';
+  const companyOpts = state.companies.map(c => '<option value="' + c.id + '"' + (initialCompanyId === c.id ? ' selected' : '') + '>' + esc(c.name) + '</option>').join('');
+
+  const initial = {
+    title: existing?.title || prefill?.title || '',
+    descriptionMd: existing?.descriptionMd || prefill?.descriptionMd || '',
+    priceOre: existing?.priceOre ?? null,
+    priceKr: existing?.priceOre != null ? (existing.priceOre / 100) : '',
+    status: existing?.status || 'NY',
+    assigneeIds: (existing?.assignees || []).map(a => a.id),
+    priceViewerIds: (existing?.priceViewers || []).map(pv => pv.id),
+  };
+
+  const timelineHtml = existing ? (
+    '<div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">' +
+    '<h3 style="font-size:14px;margin-bottom:10px">Tidslinje</h3>' +
+    (existing.events.length ? existing.events.map(ev =>
+      '<div class="module-block">' +
+      '<div class="module-header">' +
+        '<strong>' + esc(ev.header) + '</strong>' +
+        '<span class="actions">' +
+          '<span class="small-muted" style="margin-right:8px">' + fmtDate(ev.createdAt) + '</span>' +
+          '<button type="button" class="btn danger sm" data-delete-event="' + ev.id + '" data-task="' + existing.id + '">Slett</button>' +
+        '</span>' +
+      '</div>' +
+      (ev.body ? '<div class="body" style="padding:0 8px 6px;white-space:pre-wrap">' + esc(ev.body) + '</div>' : '') +
+      (ev.comments && ev.comments.length ? '<div style="padding:6px 8px;border-top:1px dashed var(--border);font-size:12px">' +
+        ev.comments.map(cm => '<div style="margin-bottom:4px"><strong>' + esc(cm.user.name) + ':</strong> ' + esc(cm.body) + ' <span class="small-muted">' + fmtDate(cm.createdAt) + '</span></div>').join('') +
+      '</div>' : '') +
+      '</div>'
+    ).join('') : '<div class="empty">Ingen hendelser enda.</div>') +
+    '<div style="margin-top:12px;padding:10px;border:1px solid var(--border);border-radius:6px">' +
+      '<label>Ny tidslinje-hendelse</label>' +
+      '<input id="newEventHeader" placeholder="Overskrift (hva ble gjort)" maxlength="200">' +
+      '<textarea id="newEventBody" placeholder="Detaljer (valgfri)" style="min-height:60px;margin-top:6px"></textarea>' +
+      '<button type="button" class="btn sm" id="addEventBtn" style="margin-top:8px">+ Legg til hendelse</button>' +
+    '</div>' +
+    '</div>'
+  ) : '<p class="small-muted" style="margin-top:12px">Tidslinjen kan bygges ut etter at oppgaven er opprettet.</p>';
+
+  openModal(
+    '<h3>' + (existing ? 'Rediger oppgave' : 'Ny oppgave') + '</h3>' +
+    '<form id="taskForm">' +
+    '<label>Tittel</label><input name="title" required maxlength="120" value="' + esc(initial.title) + '">' +
+    '<div class="row">' +
+      '<div><label>Bedrift</label><select name="companyId" required' + (existing ? ' disabled' : '') + '>' +
+        (existing ? '' : '<option value="">Velg...</option>') + companyOpts +
+      '</select></div>' +
+      '<div><label>Status</label><select name="status">' +
+        ['NY','I_ARBEID','FERDIG'].map(s => '<option value="' + s + '"' + (initial.status === s ? ' selected' : '') + '>' + s + '</option>').join('') +
+      '</select></div>' +
+    '</div>' +
+    '<div class="row">' +
+      '<div><label>Pris (NOK, tom = ingen pris)</label><input name="priceKr" type="number" min="0" step="0.01" value="' + initial.priceKr + '"></div>' +
+      '<div></div>' +
+    '</div>' +
+    '<label>Tildelt (hvem jobber med dette fra kundens side)</label><div id="taskAssigneePicker"></div>' +
+    '<label style="margin-top:10px">Hvem kan se prisen (tom = ingen)</label><div id="taskPriceViewPicker"></div>' +
+    '<label style="display:flex;justify-content:space-between;align-items:center;margin-top:10px">Beskrivelse (markdown støttes)' +
+      '<label class="btn secondary sm" style="cursor:pointer;margin:0;text-transform:none;font-weight:500;letter-spacing:0;color:var(--accent)">' +
+        'Importer .md fil' +
+        '<input type="file" accept=".md,.markdown,text/markdown,text/plain" data-md-import style="display:none">' +
+      '</label>' +
+    '</label>' +
+    '<textarea name="body" style="min-height:140px">' + esc(initial.descriptionMd) + '</textarea>' +
+    '<div class="msg" id="taskMsg"></div>' +
+    '<footer>' +
+      '<button type="button" class="btn secondary" data-close>Avbryt</button>' +
+      '<button type="submit" class="btn">' + (existing ? 'Lagre' : 'Opprett') + '</button>' +
+    '</footer></form>' +
+    timelineHtml,
+    true
+  );
+
+  // Company picker drives the assignee/viewer options
+  function companyUsers(){
+    const cid = document.querySelector('#taskForm [name="companyId"]').value;
+    return state.users.filter(u => u.company?.id === cid && u.role !== 'ADMIN').map(u => ({ id: u.id, name: u.name }));
+  }
+  function refreshPeoplePickers(){
+    const users = companyUsers();
+    initChipPicker('taskAssigneePicker', users, initial.assigneeIds,
+      (o, rm) => '<span class="chip chip-company"' + (rm ? '' : '') + '>' + esc(o.name) + (rm ? '<span class="chip-close" data-remove-tag="' + o.id + '">×</span>' : '') + '</span>');
+    initChipPicker('taskPriceViewPicker', users, initial.priceViewerIds,
+      (o, rm) => '<span class="chip chip-company">' + esc(o.name) + (rm ? '<span class="chip-close" data-remove-tag="' + o.id + '">×</span>' : '') + '</span>');
+  }
+  refreshPeoplePickers();
+  if (!existing) {
+    document.querySelector('#taskForm [name="companyId"]').addEventListener('change', () => {
+      initial.assigneeIds = [];
+      initial.priceViewerIds = [];
+      refreshPeoplePickers();
+    });
+  }
+
+  document.getElementById('taskForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    const assigneeUserIds = document.getElementById('taskAssigneePicker')._getSelectedIds();
+    const priceViewerUserIds = document.getElementById('taskPriceViewPicker')._getSelectedIds();
+    const priceKrRaw = f.priceKr.value.trim();
+    const priceOre = priceKrRaw === '' ? null : Math.round(Number(priceKrRaw) * 100);
+
+    try {
+      if (existing) {
+        await api('/admin/tasks/' + existing.id, { method: 'PATCH', body: JSON.stringify({
+          title: f.title.value.trim(),
+          descriptionMd: f.body.value,
+          priceOre,
+          status: f.status.value,
+          assigneeUserIds,
+          priceViewerUserIds,
+        })});
+      } else {
+        const r = await api('/admin/tasks', { method: 'POST', body: JSON.stringify({
+          companyId: f.companyId.value,
+          title: f.title.value.trim(),
+          descriptionMd: f.body.value,
+          priceOre,
+          status: f.status.value,
+          assigneeUserIds,
+          priceViewerUserIds,
+        })});
+        if (prefill && prefill.requestId) {
+          try { await api('/admin/requests/' + prefill.requestId + '/link-task', { method: 'POST', body: JSON.stringify({ taskId: r.task.id }) }); } catch(_){}
+        }
+      }
+      closeModal(); await load();
+    } catch (err) { document.getElementById('taskMsg').textContent = 'Feil: ' + err.message; }
+  });
+
+  if (existing) {
+    document.getElementById('addEventBtn').addEventListener('click', async () => {
+      const header = document.getElementById('newEventHeader').value.trim();
+      const body   = document.getElementById('newEventBody').value.trim();
+      if (!header) { alert('Overskrift er påkrevd'); return; }
+      try {
+        await api('/admin/tasks/' + existing.id + '/events', { method: 'POST', body: JSON.stringify({ header, body }) });
+        closeModal(); await load(); openTaskModal(existing.id);
+      } catch (err) { alert('Feil: ' + err.message); }
+    });
+  }
+}
+
+// ─── Request thread modal ─────────────────────────────────────
+function openRequestThread(id){
+  const r = state.requests.find(x => x.id === id);
+  if (!r) { alert('Fant ikke forespørsel'); return; }
+
+  const commentsHtml = (r.comments || []).map(cm =>
+    '<div style="margin-bottom:10px;padding:8px;background:var(--surface);border-radius:6px">' +
+      '<div style="font-weight:600">' + esc(cm.user.name) + (cm.user.role === 'ADMIN' ? ' <span class="badge admin">admin</span>' : '') +
+      ' <span class="small-muted" style="font-weight:400">' + fmtDate(cm.createdAt) + '</span></div>' +
+      '<div style="white-space:pre-wrap;margin-top:4px">' + esc(cm.body) + '</div>' +
+    '</div>'
+  ).join('');
+
+  openModal(
+    '<h3>' + esc(r.title) + '</h3>' +
+    '<div class="subtitle">' + esc(r.company || '') + ' · ' + esc(r.createdBy || '') + ' · ' + statusBadgeReq(r.status) + '</div>' +
+    '<div style="padding:10px;background:var(--surface);border-radius:6px;margin:10px 0;white-space:pre-wrap">' + esc(r.description || '') + '</div>' +
+    '<h4 style="font-size:13px;margin:12px 0 6px">Kommentarer</h4>' +
+    (commentsHtml || '<div class="empty">Ingen kommentarer</div>') +
+    '<form id="reqReplyForm" style="margin-top:10px">' +
+      '<label>Svar</label>' +
+      '<textarea name="body" required style="min-height:70px" placeholder="Skriv et svar..."></textarea>' +
+      '<footer>' +
+        '<button type="button" class="btn secondary" data-close>Lukk</button>' +
+        '<button type="submit" class="btn">Send svar</button>' +
+      '</footer>' +
+    '</form>',
+    true
+  );
+
+  document.getElementById('reqReplyForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const body = e.target.body.value.trim();
+    if (!body) return;
+    try {
+      await api('/admin/requests/' + id + '/comments', { method: 'POST', body: JSON.stringify({ body }) });
+      closeModal(); await load();
+    } catch (err) { alert('Feil: ' + err.message); }
+  });
+}
+
 // ─── Solution modal ───────────────────────────────────────────
 function openSolutionModal(){
   const companyOpts = state.companies.map(c => '<option value="' + c.id + '">' + esc(c.name) + '</option>').join('');
@@ -689,6 +919,7 @@ document.addEventListener('click', async (e) => {
   if (open === 'articleModal') return openArticleModal();
   if (open === 'courseModal') return openCourseModal();
   if (open === 'solutionModal') return openSolutionModal();
+  if (open === 'taskModal') return openTaskModal();
 
   if (t.dataset.editUser) return openUserModal(t.dataset.editUser);
   if (t.dataset.editCompany) return openCompanyModal(t.dataset.editCompany);
@@ -698,6 +929,38 @@ document.addEventListener('click', async (e) => {
   if (t.dataset.editModule) return openModuleModal(t.dataset.course, t.dataset.editModule);
   if (t.dataset.newLessonModule) return openLessonModal(null, t.dataset.newLessonModule);
   if (t.dataset.editLesson) return openLessonModal(t.dataset.editLesson);
+  if (t.dataset.editTask) return openTaskModal(t.dataset.editTask);
+  if (t.dataset.openRequest) return openRequestThread(t.dataset.openRequest);
+
+  if (t.dataset.promoteRequest) {
+    if (!confirm('Promoter forespørselen til en oppgave? Forespørselen markeres som promotert.')) return;
+    try {
+      const r = await api('/admin/requests/' + t.dataset.promoteRequest + '/promote', { method: 'POST' });
+      await load();
+      openTaskModal(null, { ...r.prefill, requestId: r.requestId });
+    } catch (err) { alert('Feil: ' + err.message); }
+    return;
+  }
+  if (t.dataset.resolveRequest) {
+    try { await api('/admin/requests/' + t.dataset.resolveRequest + '/status', { method: 'POST', body: JSON.stringify({ status: 'RESOLVED' }) }); await load(); }
+    catch (err) { alert('Feil: ' + err.message); }
+    return;
+  }
+  if (t.dataset.reopenRequest) {
+    try { await api('/admin/requests/' + t.dataset.reopenRequest + '/status', { method: 'POST', body: JSON.stringify({ status: 'OPEN' }) }); await load(); }
+    catch (err) { alert('Feil: ' + err.message); }
+    return;
+  }
+  if (t.dataset.deleteTask) {
+    if (!confirm('Slette oppgaven? Alle tidslinje-hendelser og kommentarer slettes.')) return;
+    try { await api('/admin/tasks/' + t.dataset.deleteTask, { method: 'DELETE' }); await load(); } catch (err) { alert('Feil: ' + err.message); }
+    return;
+  }
+  if (t.dataset.deleteEvent) {
+    if (!confirm('Slette tidslinje-hendelsen?')) return;
+    try { await api('/admin/tasks/' + t.dataset.task + '/events/' + t.dataset.deleteEvent, { method: 'DELETE' }); closeModal(); await load(); openTaskModal(t.dataset.task); } catch (err) { alert('Feil: ' + err.message); }
+    return;
+  }
 
   if (t.dataset.deleteCompany) {
     if (!confirm('Slette bedrift? Brukere mister tilknytning.')) return;
@@ -731,10 +994,6 @@ document.addEventListener('click', async (e) => {
 
 document.addEventListener('change', async (e) => {
   const t = e.target;
-  if (t.dataset.requestStatus) {
-    try { await api('/admin/requests/' + t.dataset.requestStatus + '/status', { method: 'POST', body: JSON.stringify({ status: t.value }) }); await load(); }
-    catch (err) { alert('Feil: ' + err.message); }
-  }
   if (t.dataset.mdImport !== undefined && t.files && t.files[0]) {
     const file = t.files[0];
     const text = await file.text();

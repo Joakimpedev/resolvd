@@ -8,6 +8,7 @@ import { adminRoutes, adminPublicRoutes } from './routes/admin/index.js';
 import { meRoutes } from './routes/me.js';
 import { postsRoutes } from './routes/posts.js';
 import { requestsRoutes } from './routes/requests.js';
+import { tasksRoutes } from './routes/tasks.js';
 import { lessonsRoutes } from './routes/lessons.js';
 
 const isProd = process.env.NODE_ENV === 'production';
@@ -46,6 +47,7 @@ api.use('*', tenantMiddleware);
 api.route('/me',       meRoutes);
 api.route('/posts',    postsRoutes);
 api.route('/requests', requestsRoutes);
+api.route('/tasks',    tasksRoutes);
 api.route('/lessons',  lessonsRoutes);
 
 app.route('/api', api);

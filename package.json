@@ -9,6 +9,8 @@
   "scripts": {
     "mobile": "npm run start --workspace=@resolvd/mobile",
     "api": "npm run dev --workspace=@resolvd/api",
+    "db:deploy": "npm run db:deploy --workspace=@resolvd/api",
+    "db:migrate": "npm run db:migrate --workspace=@resolvd/api",
     "db:push": "npm run db:push --workspace=@resolvd/api",
     "db:seed": "npm run db:seed --workspace=@resolvd/api",
     "db:studio": "npm run db:studio --workspace=@resolvd/api",

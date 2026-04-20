@@ -4,7 +4,7 @@ import { prisma } from '../../db.js';
 export const overviewRoutes = new Hono();
 
 overviewRoutes.get('/', async (c) => {
-  const [companies, users, posts, requests, solutions, courses, tags] = await Promise.all([
+  const [companies, users, posts, requests, tasks, solutions, courses, tags] = await Promise.all([
     prisma.company.findMany({ orderBy: { createdAt: 'desc' }, include: { _count: { select: { users: true } } } }),
     prisma.user.findMany({
       where: { deletedAt: null },
@@ -28,6 +28,29 @@ overviewRoutes.get('/', async (c) => {
       include: {
         company:   { select: { name: true } },
         createdBy: { select: { name: true, email: true } },
+        comments:  {
+          orderBy: { createdAt: 'asc' },
+          include: { user: { select: { id: true, name: true, avatarInitial: true, role: true } } },
+        },
+      },
+    }),
+    prisma.task.findMany({
+      orderBy: { updatedAt: 'desc' },
+      include: {
+        company:   { select: { id: true, name: true } },
+        createdBy: { select: { name: true, email: true } },
+        assignees: { include: { user: { select: { id: true, name: true, avatarInitial: true } } } },
+        priceViewers: { include: { user: { select: { id: true, name: true } } } },
+        events: {
+          orderBy: { createdAt: 'desc' },
+          include: {
+            createdBy: { select: { id: true, name: true } },
+            comments:  {
+              orderBy: { createdAt: 'asc' },
+              include: { user: { select: { id: true, name: true, avatarInitial: true } } },
+            },
+          },
+        },
       },
     }),
     prisma.solution.findMany({ orderBy: { createdAt: 'desc' }, include: { company: { select: { name: true } } } }),
@@ -80,7 +103,42 @@ overviewRoutes.get('/', async (c) => {
     requests: requests.map(r => ({
       id: r.id, title: r.title, description: r.description, status: r.status,
       company: r.company.name, createdBy: r.createdBy?.name ?? r.createdBy?.email ?? '—',
+      commentCount: r.comments.length,
+      promotedAt: r.promotedAt?.toISOString() ?? null,
+      promotedToTaskId: r.promotedToTaskId,
       updatedAt: r.updatedAt.toISOString(),
+      comments: r.comments.map(cm => ({
+        id: cm.id,
+        body: cm.body,
+        user: cm.user,
+        createdAt: cm.createdAt.toISOString(),
+      })),
+    })),
+    tasks: tasks.map(t => ({
+      id: t.id,
+      title: t.title,
+      descriptionMd: t.descriptionMd,
+      status: t.status,
+      priceOre: t.priceOre,
+      company: t.company,
+      createdBy: t.createdBy?.name ?? t.createdBy?.email ?? '—',
+      assignees: t.assignees.map(a => a.user),
+      priceViewers: t.priceViewers.map(pv => pv.user),
+      events: t.events.map(e => ({
+        id: e.id,
+        header: e.header,
+        body: e.body,
+        createdBy: e.createdBy,
+        createdAt: e.createdAt.toISOString(),
+        comments: e.comments.map(cm => ({
+          id: cm.id,
+          body: cm.body,
+          user: cm.user,
+          createdAt: cm.createdAt.toISOString(),
+        })),
+      })),
+      createdAt: t.createdAt.toISOString(),
+      updatedAt: t.updatedAt.toISOString(),
     })),
     solutions: solutions.map(s => ({
       id: s.id, name: s.name, subtitle: s.subtitle, status: s.status,

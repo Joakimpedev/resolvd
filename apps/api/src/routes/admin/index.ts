@@ -7,6 +7,7 @@ import { coursesRoutes } from './courses.js';
 import { tagsRoutes } from './tags.js';
 import { solutionsRoutes } from './solutions.js';
 import { requestsAdminRoutes } from './requests.js';
+import { tasksAdminRoutes } from './tasks.js';
 import { overviewRoutes } from './overview.js';
 import { DASHBOARD_HTML } from './templates/dashboard.js';
 
@@ -62,3 +63,4 @@ adminRoutes.route('/courses',   coursesRoutes);
 adminRoutes.route('/tags',      tagsRoutes);
 adminRoutes.route('/solutions', solutionsRoutes);
 adminRoutes.route('/requests',  requestsAdminRoutes);
+adminRoutes.route('/tasks',     tasksAdminRoutes);
