@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react';
 import { View, Text, TextInput, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
-import { signIn } from '@/lib/auth';
+import { useQueryClient } from '@tanstack/react-query';
+import { signInEmail } from '@/lib/auth';
 import { Logo, Button } from '@/components';
 import { colors, layout, spacing, radii, borders } from '@/theme/tokens';
 import { type, fontFamily } from '@/theme/typography';
@@ -13,6 +14,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const qc = useQueryClient();
   const passwordInputRef = useRef<TextInput>(null);
 
   async function onSubmit() {
@@ -20,12 +22,9 @@ export default function Login() {
     setLoading(true);
     setError(null);
     try {
-      const result = await signIn.email({ email: email.trim(), password });
-      if ((result as { error?: { message?: string } })?.error) {
-        throw new Error(
-          (result as { error?: { message?: string } }).error?.message ?? 'Ugyldig e-post eller passord.',
-        );
-      }
+      await signInEmail(email, password);
+      // Force session hook to re-read the newly-stored token
+      await qc.invalidateQueries({ queryKey: ['session'] });
       router.replace('/(app)/feed');
     } catch (e) {
       errorHaptic();
