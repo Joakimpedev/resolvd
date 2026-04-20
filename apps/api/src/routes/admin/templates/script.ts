@@ -638,7 +638,7 @@ async function openLessonModal(id, moduleId){
 function openSolutionModal(){
   const companyOpts = state.companies.map(c => '<option value="' + c.id + '">' + esc(c.name) + '</option>').join('');
   openModal(
-    '<h3>Ny AI-løsning</h3>' +
+    '<h3>Ny oppgave</h3>' +
     '<form id="solForm">' +
     '<label>Navn</label><input name="name" required>' +
     '<label>Bedrift</label><select name="companyId" required><option value="">Velg...</option>' + companyOpts + '</select>' +

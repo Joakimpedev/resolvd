@@ -77,8 +77,8 @@ export const DASHBOARD_HTML = `<!doctype html><html lang="no"><head><meta charse
 
   <div class="section">
     <h2>
-      <span class="title-group">AI-løsninger <span class="count" id="solCount">0</span></span>
-      <button class="btn nav" data-open="solutionModal">+ Ny AI-løsning</button>
+      <span class="title-group">Oppgaver <span class="count" id="solCount">0</span></span>
+      <button class="btn nav" data-open="solutionModal">+ Ny oppgave</button>
     </h2>
     <table id="solTable"><thead><tr>
       <th>Navn</th><th>Bedrift</th><th>Status</th><th>Undertekst</th><th></th>

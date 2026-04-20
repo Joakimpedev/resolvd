@@ -1,5 +1,7 @@
+import { useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, Pressable, ActivityIndicator } from 'react-native';
 import { Bookmark, BookmarkCheck } from 'lucide-react-native';
+import { useFocusEffect } from 'expo-router';
 import { ScreenContainer, Logo, Avatar, Card, ErrorBoundary, ScopeBadges } from '@/components';
 import { colors, layout, spacing, borders } from '@/theme/tokens';
 import { type } from '@/theme/typography';
@@ -24,6 +26,8 @@ function FeedInner() {
 
   const greeting = useGreeting();
   const newPostsCount = feed.data?.posts.filter(p => !p.isRead).length ?? 0;
+
+  useFocusEffect(useCallback(() => { feed.refetch(); me.refetch(); }, [feed, me]));
 
   const viewerCompanyId = me.data?.company?.id ?? null;
   const viewerTagIds = me.data?.tags.map(t => t.id) ?? [];

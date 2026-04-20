@@ -133,13 +133,13 @@ function StatCard({ number, label }: { number: number; label: string }) {
 function SolutionsSection({ solutions, loading }: { solutions: MeSolution[]; loading: boolean }) {
   return (
     <View style={{ marginBottom: 24 }}>
-      <SectionLabel style={{ marginBottom: 10 }}>MINE AI-LØSNINGER</SectionLabel>
+      <SectionLabel style={{ marginBottom: 10 }}>OPPGAVER FOR DEG</SectionLabel>
       {loading ? (
         <ActivityIndicator color={colors.accentGreen} />
       ) : solutions.length === 0 ? (
         <Card padding={12}>
           <Text allowFontScaling={false} style={type.body}>
-            Ingen løsninger enda. Vi setter opp første løsning sammen.
+            Ingen oppgaver enda. Første oppgave settes opp sammen med deg.
           </Text>
         </Card>
       ) : (

@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ActivityIndicator, Modal, ScrollView } from 'react-native';
 import { ChevronRight, Check, X, ChevronDown, ChevronUp } from 'lucide-react-native';
+import { useFocusEffect } from 'expo-router';
 import { ScreenContainer, Card, ProgressBar, ErrorBoundary } from '@/components';
 import { colors, layout, spacing, borders } from '@/theme/tokens';
 import { type, fontFamily } from '@/theme/typography';
@@ -23,6 +24,8 @@ export default function Laer() {
 function LaerInner() {
   const courses = useCourses();
   const [openCourseId, setOpenCourseId] = useState<string | null>(null);
+
+  useFocusEffect(useCallback(() => { courses.refetch(); }, [courses]));
 
   return (
     <ScreenContainer
