@@ -24,6 +24,8 @@ import { successHaptic, errorHaptic, lightHaptic } from '@/lib/haptics';
 
 type TabKey = 'oppgaver' | 'forespørsler';
 
+const EVENT_PREVIEW_CHAR_LIMIT = 200;
+
 export default function OppgaverScreen() {
   return (
     <ErrorBoundary>
@@ -291,6 +293,18 @@ function TaskDetailModal({ taskId, onClose }: { taskId: string | null; onClose: 
                       <Text allowFontScaling={false} style={[type.cardTitleSmall, { marginBottom: 4 }]}>
                         {ev.header}
                       </Text>
+                      {ev.body.trim() ? (
+                        <Text
+                          allowFontScaling={false}
+                          style={[type.body, { marginBottom: 6 }]}
+                          numberOfLines={3}
+                          ellipsizeMode="tail"
+                        >
+                          {ev.body.length > EVENT_PREVIEW_CHAR_LIMIT
+                            ? ev.body.slice(0, EVENT_PREVIEW_CHAR_LIMIT).trimEnd() + '…'
+                            : ev.body}
+                        </Text>
+                      ) : null}
                       <Text allowFontScaling={false} style={type.metaSmall}>
                         {relativeNo(ev.createdAt)} · {ev.comments.length} {ev.comments.length === 1 ? 'kommentar' : 'kommentarer'}
                       </Text>
