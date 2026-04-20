@@ -5,10 +5,7 @@ CREATE TYPE "UserRole" AS ENUM ('ADMIN', 'OWNER', 'EMPLOYEE');
 CREATE TYPE "PostKind" AS ENUM ('ARTICLE', 'LESSON', 'UPDATE', 'BROADCAST');
 
 -- CreateEnum
-CREATE TYPE "TaskStatus" AS ENUM ('NY', 'I_ARBEID', 'FERDIG');
-
--- CreateEnum
-CREATE TYPE "RequestStatus" AS ENUM ('OPEN', 'PROMOTED', 'RESOLVED');
+CREATE TYPE "RequestStatus" AS ENUM ('I_ARBEID', 'VENTER_PA_DEG', 'FERDIG');
 
 -- CreateEnum
 CREATE TYPE "SolutionStatus" AS ENUM ('ACTIVE', 'INACTIVE');
@@ -186,103 +183,17 @@ CREATE TABLE "Comment" (
 );
 
 -- CreateTable
-CREATE TABLE "Task" (
-    "id" TEXT NOT NULL,
-    "companyId" TEXT NOT NULL,
-    "title" TEXT NOT NULL,
-    "descriptionMd" TEXT NOT NULL,
-    "priceOre" INTEGER,
-    "status" "TaskStatus" NOT NULL DEFAULT 'NY',
-    "createdByUserId" TEXT NOT NULL,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "Task_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "TaskAssignee" (
-    "taskId" TEXT NOT NULL,
-    "userId" TEXT NOT NULL,
-
-    CONSTRAINT "TaskAssignee_pkey" PRIMARY KEY ("taskId","userId")
-);
-
--- CreateTable
-CREATE TABLE "TaskPriceViewer" (
-    "taskId" TEXT NOT NULL,
-    "userId" TEXT NOT NULL,
-
-    CONSTRAINT "TaskPriceViewer_pkey" PRIMARY KEY ("taskId","userId")
-);
-
--- CreateTable
-CREATE TABLE "TaskEvent" (
-    "id" TEXT NOT NULL,
-    "taskId" TEXT NOT NULL,
-    "header" TEXT NOT NULL,
-    "body" TEXT NOT NULL,
-    "createdByUserId" TEXT NOT NULL,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "TaskEvent_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "TaskEventComment" (
-    "id" TEXT NOT NULL,
-    "eventId" TEXT NOT NULL,
-    "userId" TEXT NOT NULL,
-    "body" TEXT NOT NULL,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "TaskEventComment_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "TaskView" (
-    "userId" TEXT NOT NULL,
-    "taskId" TEXT NOT NULL,
-    "lastViewedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "TaskView_pkey" PRIMARY KEY ("userId","taskId")
-);
-
--- CreateTable
 CREATE TABLE "Request" (
     "id" TEXT NOT NULL,
     "companyId" TEXT NOT NULL,
     "title" TEXT NOT NULL,
     "description" TEXT NOT NULL,
-    "status" "RequestStatus" NOT NULL DEFAULT 'OPEN',
-    "promotedAt" TIMESTAMP(3),
-    "promotedToTaskId" TEXT,
+    "status" "RequestStatus" NOT NULL DEFAULT 'I_ARBEID',
     "createdByUserId" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "Request_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "RequestComment" (
-    "id" TEXT NOT NULL,
-    "requestId" TEXT NOT NULL,
-    "userId" TEXT NOT NULL,
-    "body" TEXT NOT NULL,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "RequestComment_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "RequestView" (
-    "userId" TEXT NOT NULL,
-    "requestId" TEXT NOT NULL,
-    "lastViewedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "RequestView_pkey" PRIMARY KEY ("userId","requestId")
 );
 
 -- CreateTable
@@ -395,37 +306,10 @@ CREATE INDEX "LessonProgress_postId_idx" ON "LessonProgress"("postId");
 CREATE INDEX "Comment_postId_idx" ON "Comment"("postId");
 
 -- CreateIndex
-CREATE INDEX "Task_companyId_status_idx" ON "Task"("companyId", "status");
-
--- CreateIndex
-CREATE INDEX "Task_createdByUserId_idx" ON "Task"("createdByUserId");
-
--- CreateIndex
-CREATE INDEX "TaskAssignee_userId_idx" ON "TaskAssignee"("userId");
-
--- CreateIndex
-CREATE INDEX "TaskPriceViewer_userId_idx" ON "TaskPriceViewer"("userId");
-
--- CreateIndex
-CREATE INDEX "TaskEvent_taskId_createdAt_idx" ON "TaskEvent"("taskId", "createdAt");
-
--- CreateIndex
-CREATE INDEX "TaskEventComment_eventId_idx" ON "TaskEventComment"("eventId");
-
--- CreateIndex
-CREATE INDEX "TaskView_taskId_idx" ON "TaskView"("taskId");
-
--- CreateIndex
 CREATE INDEX "Request_companyId_status_idx" ON "Request"("companyId", "status");
 
 -- CreateIndex
 CREATE INDEX "Request_createdByUserId_idx" ON "Request"("createdByUserId");
-
--- CreateIndex
-CREATE INDEX "RequestComment_requestId_idx" ON "RequestComment"("requestId");
-
--- CreateIndex
-CREATE INDEX "RequestView_requestId_idx" ON "RequestView"("requestId");
 
 -- CreateIndex
 CREATE INDEX "Solution_companyId_idx" ON "Solution"("companyId");
@@ -509,58 +393,10 @@ ALTER TABLE "Comment" ADD CONSTRAINT "Comment_postId_fkey" FOREIGN KEY ("postId"
 ALTER TABLE "Comment" ADD CONSTRAINT "Comment_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Task" ADD CONSTRAINT "Task_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Task" ADD CONSTRAINT "Task_createdByUserId_fkey" FOREIGN KEY ("createdByUserId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "TaskAssignee" ADD CONSTRAINT "TaskAssignee_taskId_fkey" FOREIGN KEY ("taskId") REFERENCES "Task"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "TaskAssignee" ADD CONSTRAINT "TaskAssignee_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "TaskPriceViewer" ADD CONSTRAINT "TaskPriceViewer_taskId_fkey" FOREIGN KEY ("taskId") REFERENCES "Task"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "TaskPriceViewer" ADD CONSTRAINT "TaskPriceViewer_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "TaskEvent" ADD CONSTRAINT "TaskEvent_taskId_fkey" FOREIGN KEY ("taskId") REFERENCES "Task"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "TaskEvent" ADD CONSTRAINT "TaskEvent_createdByUserId_fkey" FOREIGN KEY ("createdByUserId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "TaskEventComment" ADD CONSTRAINT "TaskEventComment_eventId_fkey" FOREIGN KEY ("eventId") REFERENCES "TaskEvent"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "TaskEventComment" ADD CONSTRAINT "TaskEventComment_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "TaskView" ADD CONSTRAINT "TaskView_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "TaskView" ADD CONSTRAINT "TaskView_taskId_fkey" FOREIGN KEY ("taskId") REFERENCES "Task"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "Request" ADD CONSTRAINT "Request_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Request" ADD CONSTRAINT "Request_createdByUserId_fkey" FOREIGN KEY ("createdByUserId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "RequestComment" ADD CONSTRAINT "RequestComment_requestId_fkey" FOREIGN KEY ("requestId") REFERENCES "Request"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "RequestComment" ADD CONSTRAINT "RequestComment_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "RequestView" ADD CONSTRAINT "RequestView_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "RequestView" ADD CONSTRAINT "RequestView_requestId_fkey" FOREIGN KEY ("requestId") REFERENCES "Request"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Solution" ADD CONSTRAINT "Solution_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
