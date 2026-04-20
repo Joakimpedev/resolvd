@@ -76,6 +76,9 @@ lessonsRoutes.get('/courses', async (c) => {
         coverImage: co.coverImage,
         totalCount: total,
         completedCount: completed,
+        everyone: co.everyone,
+        companies: co.companies,
+        tags: co.tags,
       };
     }),
   });

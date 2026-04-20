@@ -2,12 +2,12 @@ import { useCallback, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ActivityIndicator, Modal, ScrollView } from 'react-native';
 import { ChevronRight, Check, X, ChevronDown, ChevronUp } from 'lucide-react-native';
 import { useFocusEffect } from 'expo-router';
-import { ScreenContainer, Card, ProgressBar, ErrorBoundary } from '@/components';
+import { ScreenContainer, Card, ProgressBar, ErrorBoundary, ScopeBadges } from '@/components';
 import { colors, layout, spacing, borders } from '@/theme/tokens';
 import { type, fontFamily } from '@/theme/typography';
 import { iconSizes, iconStrokeWidth } from '@/theme/icons';
 import {
-  useCourses, useCourse, useCompleteLesson,
+  useMe, useCourses, useCourse, useCompleteLesson,
   type CourseSummary, type CourseDetail, type CourseLesson, type CourseModule,
 } from '@/lib/queries';
 import { ApiError } from '@/lib/api';
@@ -22,11 +22,16 @@ export default function Laer() {
 }
 
 function LaerInner() {
+  const me = useMe();
   const courses = useCourses();
   const [openCourseId, setOpenCourseId] = useState<string | null>(null);
 
   const { refetch: refetchCourses } = courses;
-  useFocusEffect(useCallback(() => { refetchCourses(); }, [refetchCourses]));
+  const { refetch: refetchMe } = me;
+  useFocusEffect(useCallback(() => { refetchCourses(); refetchMe(); }, [refetchCourses, refetchMe]));
+
+  const viewerCompanyId = me.data?.company?.id ?? null;
+  const viewerTagIds = me.data?.tags.map(t => t.id) ?? [];
 
   return (
     <ScreenContainer
@@ -53,7 +58,13 @@ function LaerInner() {
       ) : (
         <View style={styles.courseGrid}>
           {courses.data.courses.map((co) => (
-            <CourseCard key={co.id} course={co} onPress={() => setOpenCourseId(co.id)} />
+            <CourseCard
+              key={co.id}
+              course={co}
+              viewerCompanyId={viewerCompanyId}
+              viewerTagIds={viewerTagIds}
+              onPress={() => setOpenCourseId(co.id)}
+            />
           ))}
         </View>
       )}
@@ -66,7 +77,17 @@ function LaerInner() {
   );
 }
 
-function CourseCard({ course, onPress }: { course: CourseSummary; onPress: () => void }) {
+function CourseCard({
+  course,
+  viewerCompanyId,
+  viewerTagIds,
+  onPress,
+}: {
+  course: CourseSummary;
+  viewerCompanyId: string | null;
+  viewerTagIds: string[];
+  onPress: () => void;
+}) {
   const pct = course.totalCount === 0 ? 0 : course.completedCount / course.totalCount;
   const done = pct >= 1;
   return (
@@ -77,6 +98,15 @@ function CourseCard({ course, onPress }: { course: CourseSummary; onPress: () =>
     >
       <Card padding={16}>
         <Text allowFontScaling={false} style={type.cardTitle}>{course.title}</Text>
+        <View style={{ marginTop: 6 }}>
+          <ScopeBadges
+            everyone={course.everyone}
+            companies={course.companies}
+            tags={course.tags}
+            viewerCompanyId={viewerCompanyId}
+            viewerTagIds={viewerTagIds}
+          />
+        </View>
         {course.description ? (
           <Text allowFontScaling={false} style={[type.body, { marginTop: 4 }]} numberOfLines={2}>
             {course.description}

@@ -49,6 +49,9 @@ export type CourseSummary = {
   coverImage: string | null;
   totalCount: number;
   completedCount: number;
+  everyone: boolean;
+  companies: ScopeCompany[];
+  tags: ScopeTag[];
 };
 
 export type CourseLesson = {
