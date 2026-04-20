@@ -13,33 +13,41 @@ datasource db {
 // ──────────────────────────────────────────────────────────────
 
 model User {
-  id               String    @id @default(cuid())
-  email            String    @unique
-  emailVerified    Boolean   @default(false)
-  name             String
-  image            String?
-  role             UserRole  @default(EMPLOYEE)
-  companyId        String?
-  company          Company?  @relation(fields: [companyId], references: [id], onDelete: SetNull)
-  avatarInitial    String    @default("?")
+  id                    String    @id @default(cuid())
+  email                 String    @unique
+  emailVerified         Boolean   @default(false)
+  name                  String
+  image                 String?
+  role                  UserRole  @default(EMPLOYEE)
+  companyId             String?
+  company               Company?  @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  avatarInitial         String    @default("?")
   /// Plaintext password stored for admin visibility. SECURITY NOTE: normally
   /// apps never store plaintext — bcrypt hash in Account.password is the
   /// auth-critical field. This is a write-only admin note populated when
   /// admin creates/resets a password so the dashboard can display it.
   plaintextPasswordNote String?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-  deletedAt        DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  deletedAt             DateTime?
 
-  accounts         Account[]
-  sessions         Session[]
-  tags             UserTag[]
-  postReads        PostRead[]
-  postBookmarks    PostBookmark[]
-  lessonProgress   LessonProgress[]
-  comments         Comment[]
-  requestsCreated  Request[]
-  authoredPosts    Post[]           @relation("authorPosts")
+  accounts          Account[]
+  sessions          Session[]
+  tags              UserTag[]
+  postReads         PostRead[]
+  postBookmarks     PostBookmark[]
+  lessonProgress    LessonProgress[]
+  comments          Comment[]
+  requestsCreated   Request[]          @relation("requestCreatedBy")
+  requestComments   RequestComment[]
+  requestViews      RequestView[]
+  tasksCreated      Task[]             @relation("taskCreatedBy")
+  taskAssignments   TaskAssignee[]
+  taskPriceViews    TaskPriceViewer[]
+  taskEvents        TaskEvent[]        @relation("taskEventAuthor")
+  taskEventComments TaskEventComment[]
+  taskViews         TaskView[]
+  authoredPosts     Post[]             @relation("authorPosts")
 
   @@index([companyId])
   @@index([deletedAt])
@@ -52,9 +60,9 @@ enum UserRole {
 }
 
 model Account {
-  id                    String   @id @default(cuid())
+  id                    String    @id @default(cuid())
   userId                String
-  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   accountId             String
   providerId            String
   accessToken           String?
@@ -109,9 +117,10 @@ model Company {
 
   users       User[]
   requests    Request[]
+  tasks       Task[]
   solutions   Solution[]
-  postScope   Post[]    @relation("PostCompanies")
-  courseScope Course[]  @relation("CourseCompanies")
+  postScope   Post[]     @relation("PostCompanies")
+  courseScope Course[]   @relation("CourseCompanies")
 
   @@index([name])
 }
@@ -128,32 +137,32 @@ model Tag {
 model UserTag {
   userId String
   tagId  String
-  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tag    Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tag    Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
 
   @@id([userId, tagId])
   @@index([tagId])
 }
 
 model Post {
-  id               String     @id @default(cuid())
-  kind             PostKind
-  everyone         Boolean    @default(false)
-  companies        Company[]  @relation("PostCompanies")
-  tags             Tag[]      @relation("PostTags")
-  title            String
-  body             String     @db.Text
-  category         String?
-  readingMinutes   Int?
-  moduleId         String?
-  module           Module?    @relation(fields: [moduleId], references: [id], onDelete: SetNull)
-  moduleOrder      Int?
-  commentsEnabled  Boolean    @default(false)
-  publishedAt      DateTime?
-  authorUserId     String
-  author           User       @relation("authorPosts", fields: [authorUserId], references: [id])
-  createdAt        DateTime   @default(now())
-  updatedAt        DateTime   @updatedAt
+  id              String    @id @default(cuid())
+  kind            PostKind
+  everyone        Boolean   @default(false)
+  companies       Company[] @relation("PostCompanies")
+  tags            Tag[]     @relation("PostTags")
+  title           String
+  body            String    @db.Text
+  category        String?
+  readingMinutes  Int?
+  moduleId        String?
+  module          Module?   @relation(fields: [moduleId], references: [id], onDelete: SetNull)
+  moduleOrder     Int?
+  commentsEnabled Boolean   @default(false)
+  publishedAt     DateTime?
+  authorUserId    String
+  author          User      @relation("authorPosts", fields: [authorUserId], references: [id])
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   reads     PostRead[]
   bookmarks PostBookmark[]
@@ -204,8 +213,8 @@ model PostRead {
   userId String
   postId String
   readAt DateTime @default(now())
-  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  post   Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post   Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
 
   @@id([userId, postId])
   @@index([postId])
@@ -215,8 +224,8 @@ model PostBookmark {
   userId       String
   postId       String
   bookmarkedAt DateTime @default(now())
-  user         User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  post         Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post         Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
 
   @@id([userId, postId])
   @@index([postId])
@@ -226,8 +235,8 @@ model LessonProgress {
   userId      String
   postId      String
   completedAt DateTime @default(now())
-  user        User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  post        Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post        Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
 
   @@id([userId, postId])
   @@index([postId])
@@ -245,26 +254,154 @@ model Comment {
   @@index([postId])
 }
 
-model Request {
-  id              String         @id @default(cuid())
+// ──────────────────────────────────────────────────────────────
+// Oppgaver (Tasks) — admin-created, company-scoped work items.
+// Admin writes MD description + adds timeline events; any company
+// user can comment on events. Price visibility is an explicit
+// allowlist (empty = nobody sees it).
+// ──────────────────────────────────────────────────────────────
+
+model Task {
+  id              String     @id @default(cuid())
   companyId       String
-  company         Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company         Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
   title           String
-  description     String         @db.Text
-  status          RequestStatus  @default(I_ARBEID)
+  descriptionMd   String     @db.Text
+  priceOre        Int?
+  status          TaskStatus @default(NY)
   createdByUserId String
-  createdBy       User           @relation(fields: [createdByUserId], references: [id])
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  createdBy       User       @relation("taskCreatedBy", fields: [createdByUserId], references: [id])
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  assignees    TaskAssignee[]
+  priceViewers TaskPriceViewer[]
+  events       TaskEvent[]
+  views        TaskView[]
+
+  @@index([companyId, status])
+  @@index([createdByUserId])
+}
+
+enum TaskStatus {
+  NY
+  I_ARBEID
+  FERDIG
+}
+
+model TaskAssignee {
+  taskId String
+  userId String
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, userId])
+  @@index([userId])
+}
+
+model TaskPriceViewer {
+  taskId String
+  userId String
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, userId])
+  @@index([userId])
+}
+
+model TaskEvent {
+  id              String   @id @default(cuid())
+  taskId          String
+  task            Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  header          String
+  body            String   @db.Text
+  createdByUserId String
+  createdBy       User     @relation("taskEventAuthor", fields: [createdByUserId], references: [id])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  comments TaskEventComment[]
+
+  @@index([taskId, createdAt])
+}
+
+model TaskEventComment {
+  id        String    @id @default(cuid())
+  eventId   String
+  event     TaskEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  body      String    @db.Text
+  createdAt DateTime  @default(now())
+
+  @@index([eventId])
+}
+
+model TaskView {
+  userId       String
+  taskId       String
+  lastViewedAt DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task         Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@id([userId, taskId])
+  @@index([taskId])
+}
+
+// ──────────────────────────────────────────────────────────────
+// Forespørsler (Requests) — user-created, lightweight company
+// threads. Admins + any company user can comment. Admin can mark
+// a request as "promoted" when they spin off a Task from it.
+// ──────────────────────────────────────────────────────────────
+
+model Request {
+  id               String        @id @default(cuid())
+  companyId        String
+  company          Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  title            String
+  description      String        @db.Text
+  status           RequestStatus @default(OPEN)
+  promotedAt       DateTime?
+  promotedToTaskId String?
+  createdByUserId  String
+  createdBy        User          @relation("requestCreatedBy", fields: [createdByUserId], references: [id])
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  comments RequestComment[]
+  views    RequestView[]
 
   @@index([companyId, status])
   @@index([createdByUserId])
 }
 
 enum RequestStatus {
-  I_ARBEID
-  VENTER_PA_DEG
-  FERDIG
+  OPEN
+  PROMOTED
+  RESOLVED
+}
+
+model RequestComment {
+  id        String   @id @default(cuid())
+  requestId String
+  request   Request  @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  body      String   @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([requestId])
+}
+
+model RequestView {
+  userId       String
+  requestId    String
+  lastViewedAt DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  request      Request  @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@id([userId, requestId])
+  @@index([requestId])
 }
 
 model Solution {
@@ -277,7 +414,7 @@ model Solution {
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
 
-  usages    SolutionUsage[]
+  usages SolutionUsage[]
 
   @@index([companyId])
   @@index([status])

@@ -62,8 +62,10 @@ Run from repo root (`resolvd-app/`):
 
 1. [ ] `npm install` — installs everything across apps/mobile + apps/api + packages/shared
 2. [ ] `npm run db:generate` — generates the Prisma client from the schema
-3. [ ] `npm run db:push` — creates all tables on the Railway Postgres
-4. [ ] `npm run db:seed` — creates admin user, demo company, owner, employee, posts, lessons, requests, solutions, one pending invitation
+3. [ ] `npm run db:deploy` — applies versioned migrations from `apps/api/prisma/migrations/` to the Railway Postgres. Initial migration is `20260420000000_init` (full schema).
+4. [ ] `npm run db:seed` — creates admin user, demo company, owner, employee, posts, lessons, one demo task + request, AI-verktøy (solutions), one pending invitation
+
+**Future schema changes:** don't use `db:push` — it bypasses the migration history. Instead run `npm run db:migrate -- --name <short_description>` locally against your dev DB, commit the generated SQL under `apps/api/prisma/migrations/`, and redeploy with `npm run db:deploy`.
 
 If seeding fails with "Missing required env var": double-check every `SEED_*` var is set in `apps/api/.env`.
 
@@ -267,6 +269,7 @@ Check these first:
 - **`npm run api` crashes on "Missing required env var: BETTER_AUTH_SECRET"** → generate one with `openssl rand -base64 32` and add to `apps/api/.env`
 - **Mobile login returns "Nettverksfeil"** → API isn't running, or `EXPO_PUBLIC_API_URL` points somewhere wrong
 - **Mobile login returns "Ugyldig e-post eller passord"** → seeding hasn't run, or the email/password don't match the seed env vars
-- **Prisma "P1000" error on db:push** → `DATABASE_URL` is wrong
+- **Prisma "P1000" error on db:deploy** → `DATABASE_URL` is wrong
+- **Prisma "P3005" on db:deploy** → the DB already has tables but no `_prisma_migrations` history (likely because an earlier build used `db:push`). Run once: `npx prisma migrate resolve --applied 20260420000000_init --schema apps/api/prisma/schema.prisma` to mark the init migration as already applied, then `npm run db:deploy` will work from there.
 
 For anything else: the development plan is in `../RESOLVD-DEVELOPMENT.md` and the phase files in `../phases/` — they include specific debugging notes per phase.

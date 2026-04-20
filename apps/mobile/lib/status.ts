@@ -1,15 +1,27 @@
-import type { RequestStatus } from './queries';
+import type { RequestStatus, TaskStatus } from './queries';
 
 type BadgeVariant = 'green' | 'amber' | 'neutral';
 
-export const statusLabel: Record<RequestStatus, string> = {
-  I_ARBEID:      'I arbeid',
-  VENTER_PA_DEG: 'Venter på deg',
-  FERDIG:        'Ferdig',
+export const taskStatusLabel: Record<TaskStatus, string> = {
+  NY:       'Ny',
+  I_ARBEID: 'I arbeid',
+  FERDIG:   'Ferdig',
 };
 
-export const statusVariant: Record<RequestStatus, BadgeVariant> = {
-  I_ARBEID:      'green',
-  VENTER_PA_DEG: 'amber',
-  FERDIG:        'neutral',
+export const taskStatusVariant: Record<TaskStatus, BadgeVariant> = {
+  NY:       'neutral',
+  I_ARBEID: 'green',
+  FERDIG:   'neutral',
+};
+
+export const requestStatusLabel: Record<RequestStatus, string> = {
+  OPEN:     'Åpen',
+  PROMOTED: 'Promotert',
+  RESOLVED: 'Løst',
+};
+
+export const requestStatusVariant: Record<RequestStatus, BadgeVariant> = {
+  OPEN:     'green',
+  PROMOTED: 'neutral',
+  RESOLVED: 'neutral',
 };

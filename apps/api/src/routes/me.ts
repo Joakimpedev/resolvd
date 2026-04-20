@@ -31,13 +31,14 @@ meRoutes.get('/stats', async (c) => {
   if (!companyId) return c.json({ error: 'No company' }, 400);
 
   const weekAgo = new Date(Date.now() - 7 * 24 * 3600_000);
-  const [runsThisWeek, activeRequests, lessonsCompleted] = await Promise.all([
+  const [runsThisWeek, activeTasks, openRequests, lessonsCompleted] = await Promise.all([
     prisma.solutionUsage.count({ where: { solution: { companyId }, usedAt: { gte: weekAgo } } }),
-    prisma.request.count({ where: { companyId, status: { not: 'FERDIG' } } }),
+    prisma.task.count({ where: { companyId, status: { not: 'FERDIG' } } }),
+    prisma.request.count({ where: { companyId, status: 'OPEN' } }),
     prisma.lessonProgress.count({ where: { userId } }),
   ]);
 
-  return c.json({ runsThisWeek, activeRequests, lessonsCompleted });
+  return c.json({ runsThisWeek, activeTasks, openRequests, lessonsCompleted });
 });
 
 // GET /api/me/solutions
@@ -98,6 +99,7 @@ meRoutes.delete('/', async (c) => {
       await prisma.solutionUsage.deleteMany({ where: { solution: { companyId } } });
       await prisma.solution.deleteMany({ where: { companyId } });
       await prisma.request.deleteMany({ where: { companyId } });
+      await prisma.task.deleteMany({ where: { companyId } });
       await prisma.company.delete({ where: { id: companyId } });
     }
   }

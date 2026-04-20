@@ -10,10 +10,10 @@ export default function AppLayout() {
       screenOptions={{ headerShown: false }}
       tabBar={(props: BottomTabBarProps) => <TabBar {...props} />}
     >
-      <Tabs.Screen name="feed"      options={{ title: 'Feed' }} />
-      <Tabs.Screen name="laer"      options={{ title: 'Lær' }} />
-      <Tabs.Screen name="meldinger" options={{ title: 'Meldinger' }} />
-      <Tabs.Screen name="min-side"  options={{ title: 'Min side' }} />
+      <Tabs.Screen name="feed"     options={{ title: 'Feed' }} />
+      <Tabs.Screen name="laer"     options={{ title: 'Lær' }} />
+      <Tabs.Screen name="oppgaver" options={{ title: 'Oppgaver' }} />
+      <Tabs.Screen name="min-side" options={{ title: 'Min side' }} />
     </Tabs>
   );
 }

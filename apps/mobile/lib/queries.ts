@@ -31,15 +31,83 @@ export type FeedPost = {
   tags: ScopeTag[];
 };
 
-export type RequestStatus = 'I_ARBEID' | 'VENTER_PA_DEG' | 'FERDIG';
+// Tasks (Oppgaver) — admin-created work items.
+export type TaskStatus = 'NY' | 'I_ARBEID' | 'FERDIG';
+export type RequestStatus = 'OPEN' | 'PROMOTED' | 'RESOLVED';
 
-export type UserRequest = {
+export type Person = { id: string; name: string; avatarInitial: string };
+
+export type TaskSummary = {
+  id: string;
+  title: string;
+  status: TaskStatus;
+  priceOre: number | null;
+  canSeePrice: boolean;
+  eventCount: number;
+  assignees: Person[];
+  isAssigned: boolean;
+  lastActivityAt: string;
+  hasUnread: boolean;
+};
+
+export type TaskEventComment = {
+  id: string;
+  body: string;
+  user: Person;
+  createdAt: string;
+};
+
+export type TaskEvent = {
+  id: string;
+  header: string;
+  body: string;
+  createdBy: Person;
+  createdAt: string;
+  comments: TaskEventComment[];
+};
+
+export type TaskDetail = {
+  id: string;
+  title: string;
+  descriptionMd: string;
+  status: TaskStatus;
+  priceOre: number | null;
+  canSeePrice: boolean;
+  assignees: Person[];
+  createdAt: string;
+  updatedAt: string;
+  events: TaskEvent[];
+};
+
+export type RequestSummary = {
+  id: string;
+  title: string;
+  status: RequestStatus;
+  createdBy: Person;
+  commentCount: number;
+  lastActivityAt: string;
+  promotedAt: string | null;
+  hasUnread: boolean;
+};
+
+export type RequestComment = {
+  id: string;
+  body: string;
+  user: Person & { role: 'ADMIN' | 'OWNER' | 'EMPLOYEE' };
+  createdAt: string;
+};
+
+export type RequestDetail = {
   id: string;
   title: string;
   description: string;
   status: RequestStatus;
+  createdBy: Person;
   createdAt: string;
   updatedAt: string;
+  promotedAt: string | null;
+  promotedToTaskId: string | null;
+  comments: RequestComment[];
 };
 
 export type CourseSummary = {
@@ -82,7 +150,8 @@ export type CourseDetail = {
 
 export type Stats = {
   runsThisWeek: number;
-  activeRequests: number;
+  activeTasks: number;
+  openRequests: number;
   lessonsCompleted: number;
 };
 
@@ -136,22 +205,99 @@ export function useToggleBookmark() {
   });
 }
 
-// ─── Requests ────────────────────────────────────────────────────
+// ─── Tasks (Oppgaver) ────────────────────────────────────────────
+
+export function useTasks() {
+  return useQuery<{ tasks: TaskSummary[] }>({
+    queryKey: ['tasks'],
+    queryFn: () => api('/api/tasks'),
+  });
+}
+
+export function useTask(id: string | undefined) {
+  return useQuery<{ task: TaskDetail }>({
+    queryKey: ['task', id],
+    queryFn: () => api(`/api/tasks/${id}`),
+    enabled: !!id,
+  });
+}
+
+export function useTasksUnread() {
+  return useQuery<{ count: number }>({
+    queryKey: ['tasks', 'unread'],
+    queryFn: () => api('/api/tasks/unread-count'),
+  });
+}
+
+export function useCommentOnTaskEvent() {
+  const qc = useQueryClient();
+  return useMutation<
+    { comment: TaskEventComment },
+    Error,
+    { taskId: string; eventId: string; body: string }
+  >({
+    mutationFn: ({ taskId, eventId, body }) =>
+      api(`/api/tasks/${taskId}/events/${eventId}/comments`, { method: 'POST', body: { body } }),
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: ['task', v.taskId] });
+      qc.invalidateQueries({ queryKey: ['tasks'] });
+      qc.invalidateQueries({ queryKey: ['tasks', 'unread'] });
+    },
+  });
+}
+
+// ─── Requests (Forespørsler) ─────────────────────────────────────
 
 export function useRequests() {
-  return useQuery<{ active: UserRequest[]; completed: UserRequest[] }>({
+  return useQuery<{ requests: RequestSummary[] }>({
     queryKey: ['requests'],
     queryFn: () => api('/api/requests'),
   });
 }
 
+export function useRequest(id: string | undefined) {
+  return useQuery<{ request: RequestDetail }>({
+    queryKey: ['request', id],
+    queryFn: () => api(`/api/requests/${id}`),
+    enabled: !!id,
+  });
+}
+
+export function useRequestsUnread() {
+  return useQuery<{ count: number }>({
+    queryKey: ['requests', 'unread'],
+    queryFn: () => api('/api/requests/unread-count'),
+  });
+}
+
 export function useCreateRequest() {
   const qc = useQueryClient();
-  return useMutation<{ request: UserRequest }, Error, { title: string; description: string }>({
+  return useMutation<
+    { request: { id: string; title: string; status: RequestStatus; createdAt: string } },
+    Error,
+    { title: string; description: string }
+  >({
     mutationFn: (body) => api('/api/requests', { method: 'POST', body }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['requests'] });
       qc.invalidateQueries({ queryKey: ['stats'] });
+    },
+  });
+}
+
+export function useCommentOnRequest() {
+  const qc = useQueryClient();
+  return useMutation<
+    { comment: RequestComment },
+    Error,
+    { requestId: string; body: string }
+  >({
+    mutationFn: ({ requestId, body }) =>
+      api(`/api/requests/${requestId}/comments`, { method: 'POST', body: { body } }),
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: ['request', v.requestId] });
+      qc.invalidateQueries({ queryKey: ['requests'] });
+      qc.invalidateQueries({ queryKey: ['requests', 'unread'] });
     },
   });
 }

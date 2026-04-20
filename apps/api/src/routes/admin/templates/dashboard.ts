@@ -68,18 +68,30 @@ export const DASHBOARD_HTML = `<!doctype html><html lang="no"><head><meta charse
 
   <div class="section">
     <h2>
-      <span class="title-group">Meldinger <span class="count" id="reqCount">0</span></span>
+      <span class="title-group">Oppgaver <span class="count" id="taskCount">0</span></span>
+      <button class="btn nav" data-open="taskModal">+ Ny oppgave</button>
     </h2>
-    <table id="reqTable"><thead><tr>
-      <th>Tittel</th><th>Bedrift</th><th>Fra</th><th>Status</th><th>Oppdatert</th>
+    <table id="taskTable"><thead><tr>
+      <th>Tittel</th><th>Bedrift</th><th>Tildelt</th><th>Pris</th><th>Status</th><th>Hendelser</th><th>Oppdatert</th><th></th>
     </tr></thead><tbody></tbody></table>
   </div>
 
   <div class="section">
     <h2>
-      <span class="title-group">Oppgaver <span class="count" id="solCount">0</span></span>
-      <button class="btn nav" data-open="solutionModal">+ Ny oppgave</button>
+      <span class="title-group">Forespørsler <span class="count" id="reqCount">0</span></span>
     </h2>
+    <p class="small-muted" style="margin:-6px 0 10px">Brukere sender forespørsler — dere kan svare, markere som løst, eller promotere til en oppgave.</p>
+    <table id="reqTable"><thead><tr>
+      <th>Tittel</th><th>Bedrift</th><th>Fra</th><th>Kommentarer</th><th>Status</th><th>Oppdatert</th><th></th>
+    </tr></thead><tbody></tbody></table>
+  </div>
+
+  <div class="section">
+    <h2>
+      <span class="title-group">AI-verktøy <span class="count" id="solCount">0</span></span>
+      <button class="btn nav" data-open="solutionModal">+ Nytt verktøy</button>
+    </h2>
+    <p class="small-muted" style="margin:-6px 0 10px">Permanente verktøy brukere har tilgang til (f.eks. tilbudsgenerator, e-post-assistent).</p>
     <table id="solTable"><thead><tr>
       <th>Navn</th><th>Bedrift</th><th>Status</th><th>Undertekst</th><th></th>
     </tr></thead><tbody></tbody></table>
