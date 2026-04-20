@@ -7,35 +7,69 @@ export const postsRoutes = new Hono();
 
 const idParam = z.object({ id: z.string().min(20).max(30) });
 
+/**
+ * Scope rule: a user sees a post if
+ *   everyone=true
+ *   OR (
+ *     (post has no companies OR user's company is in post.companies)
+ *     AND
+ *     (post has no tags OR user has at least one of post.tags)
+ *     AND
+ *     (post has at least one company or tag set — i.e. scope is actually narrowed)
+ *   )
+ */
+async function getUserScope(userId: string) {
+  const [userRow, userTags] = await Promise.all([
+    prisma.user.findUnique({ where: { id: userId }, select: { companyId: true } }),
+    prisma.userTag.findMany({ where: { userId }, select: { tagId: true } }),
+  ]);
+  return {
+    companyId: userRow?.companyId ?? null,
+    tagIds: userTags.map(ut => ut.tagId),
+  };
+}
+
+function postVisibleToUser(
+  post: { everyone: boolean; companies: { id: string }[]; tags: { id: string }[] },
+  scope: { companyId: string | null; tagIds: string[] },
+): boolean {
+  if (post.everyone) return true;
+  const hasCompanies = post.companies.length > 0;
+  const hasTags = post.tags.length > 0;
+  if (!hasCompanies && !hasTags) return false;
+  const companyOk = !hasCompanies || (!!scope.companyId && post.companies.some(c => c.id === scope.companyId));
+  const tagOk = !hasTags || post.tags.some(t => scope.tagIds.includes(t.id));
+  return companyOk && tagOk;
+}
+
 postsRoutes.get('/', async (c) => {
   const userId = c.get('userId');
   const kind = (c.req.query('kind') ?? 'ARTICLE') as PostKind;
-  const scope = c.req.query('scope') ?? 'industry';
 
-  const tags = await prisma.userTag.findMany({
-    where: { userId },
-    include: { tag: true },
-  });
-  const industryTagIds = tags.filter(ut => ut.tag.kind === 'INDUSTRY').map(ut => ut.tag.id);
-  const allTagIds      = tags.map(ut => ut.tag.id);
-  const activeTagIds   = scope === 'all' ? allTagIds : industryTagIds;
+  const scope = await getUserScope(userId);
 
-  const posts = await prisma.post.findMany({
+  // Broad prefilter at DB level, then narrow in JS for the AND semantics.
+  const raw = await prisma.post.findMany({
     where: {
       kind,
       publishedAt: { not: null, lte: new Date() },
       OR: [
-        { scopeType: 'GLOBAL' },
-        { scopeType: 'TAG', tags: { some: { id: { in: activeTagIds } } } },
+        { everyone: true },
+        scope.companyId ? { companies: { some: { id: scope.companyId } } } : { id: '__none__' },
+        scope.tagIds.length ? { tags: { some: { id: { in: scope.tagIds } } } } : { id: '__none__' },
       ],
     },
     orderBy: { publishedAt: 'desc' },
     include: {
+      companies: { select: { id: true, name: true } },
+      tags:      { select: { id: true, name: true } },
       reads:     { where: { userId }, select: { readAt: true } },
       bookmarks: { where: { userId }, select: { bookmarkedAt: true } },
     },
-    take: 50,
+    take: 100,
   });
+
+  const posts = raw.filter(p => postVisibleToUser(p, scope)).slice(0, 50);
 
   return c.json({
     posts: posts.map(p => ({
@@ -48,6 +82,9 @@ postsRoutes.get('/', async (c) => {
       publishedAt: p.publishedAt!.toISOString(),
       isRead: p.reads.length > 0,
       isBookmarked: p.bookmarks.length > 0,
+      everyone: p.everyone,
+      companies: p.companies,
+      tags: p.tags,
     })),
   });
 });
@@ -56,23 +93,14 @@ postsRoutes.get('/', async (c) => {
 async function ensureUserCanSeePost(userId: string, postId: string): Promise<Post | null> {
   const post = await prisma.post.findUnique({
     where: { id: postId },
-    include: { tags: { select: { id: true } } },
+    include: {
+      companies: { select: { id: true } },
+      tags:      { select: { id: true } },
+    },
   });
   if (!post) return null;
-  if (post.scopeType === 'GLOBAL') return post;
-  if (post.scopeType === 'TAG') {
-    const userTagIds = (await prisma.userTag.findMany({ where: { userId }, select: { tagId: true } }))
-      .map(u => u.tagId);
-    const postTagIds = post.tags.map(t => t.id);
-    return postTagIds.some(id => userTagIds.includes(id)) ? post : null;
-  }
-  if (post.scopeType === 'PROJECT' && post.projectId) {
-    const member = await prisma.projectMember.findUnique({
-      where: { projectId_userId: { projectId: post.projectId, userId } },
-    });
-    return member ? post : null;
-  }
-  return null;
+  const scope = await getUserScope(userId);
+  return postVisibleToUser(post, scope) ? post : null;
 }
 
 postsRoutes.post('/:id/read', async (c) => {

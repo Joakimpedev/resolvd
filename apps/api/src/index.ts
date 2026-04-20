@@ -4,7 +4,7 @@ import { cors } from 'hono/cors';
 import { auth } from './auth.js';
 import { authMiddleware } from './middleware/auth.js';
 import { tenantMiddleware } from './middleware/tenant.js';
-import { adminRoutes, adminPublicRoutes } from './routes/admin.js';
+import { adminRoutes, adminPublicRoutes } from './routes/admin/index.js';
 import { meRoutes } from './routes/me.js';
 import { postsRoutes } from './routes/posts.js';
 import { requestsRoutes } from './routes/requests.js';

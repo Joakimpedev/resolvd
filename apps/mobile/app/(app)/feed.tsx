@@ -1,13 +1,12 @@
 import { View, Text, StyleSheet, FlatList, Pressable, ActivityIndicator } from 'react-native';
 import { Bookmark, BookmarkCheck } from 'lucide-react-native';
-import { ScreenContainer, Logo, Avatar, SegmentedToggle, Card, ErrorBoundary } from '@/components';
+import { ScreenContainer, Logo, Avatar, Card, ErrorBoundary, ScopeBadges } from '@/components';
 import { colors, layout, spacing, borders } from '@/theme/tokens';
 import { type } from '@/theme/typography';
 import { iconSizes, iconStrokeWidth } from '@/theme/icons';
 import { useMe, useFeedPosts, useMarkPostRead, useToggleBookmark, type FeedPost, type Me } from '@/lib/queries';
 import { ApiError } from '@/lib/api';
 import { lightHaptic } from '@/lib/haptics';
-import { useUIStore } from '@/store/ui';
 
 export default function Feed() {
   return (
@@ -18,16 +17,16 @@ export default function Feed() {
 }
 
 function FeedInner() {
-  const scope = useUIStore(s => s.feedScope);
-  const setScope = useUIStore(s => s.setFeedScope);
   const me = useMe();
-  const feed = useFeedPosts(scope);
+  const feed = useFeedPosts();
   const markRead = useMarkPostRead();
   const toggleBookmark = useToggleBookmark();
 
-  const industry = me.data?.company?.industry ?? '';
   const greeting = useGreeting();
   const newPostsCount = feed.data?.posts.filter(p => !p.isRead).length ?? 0;
+
+  const viewerCompanyId = me.data?.company?.id ?? null;
+  const viewerTagIds = me.data?.tags.map(t => t.id) ?? [];
 
   return (
     <ScreenContainer
@@ -35,14 +34,7 @@ function FeedInner() {
       refreshing={feed.isRefetching}
       onRefresh={() => feed.refetch()}
     >
-      <Header
-        me={me.data}
-        greeting={greeting}
-        newPostsCount={newPostsCount}
-        industry={industry}
-        scope={scope}
-        onScopeChange={setScope}
-      />
+      <Header me={me.data} greeting={greeting} newPostsCount={newPostsCount} />
 
       {feed.isLoading ? (
         <View style={styles.loading}>
@@ -51,7 +43,7 @@ function FeedInner() {
       ) : feed.error ? (
         <ErrorState error={feed.error} onRetry={() => feed.refetch()} />
       ) : feed.data?.posts.length === 0 ? (
-        <EmptyState industry={industry} />
+        <EmptyState />
       ) : (
         <FlatList
           data={feed.data!.posts}
@@ -60,6 +52,8 @@ function FeedInner() {
           renderItem={({ item }) => (
             <PostCard
               post={item}
+              viewerCompanyId={viewerCompanyId}
+              viewerTagIds={viewerTagIds}
               onPress={() => {
                 if (!item.isRead) markRead.mutate(item.id);
               }}
@@ -85,27 +79,20 @@ function useGreeting(): string {
   return 'God kveld';
 }
 
-function pluralizeNewPosts(count: number, industry: string): string {
-  const ind = industry.toLowerCase();
-  if (count === 0) return `Ingen nye innlegg for ${ind} i dag`;
-  if (count === 1) return `1 nytt innlegg for ${ind} i dag`;
-  return `${count} nye innlegg for ${ind} i dag`;
+function pluralizeNewPosts(count: number): string {
+  if (count === 0) return 'Ingen nye innlegg i dag';
+  if (count === 1) return '1 nytt innlegg i dag';
+  return `${count} nye innlegg i dag`;
 }
 
 function Header({
   me,
   greeting,
   newPostsCount,
-  industry,
-  scope,
-  onScopeChange,
 }: {
   me?: Me;
   greeting: string;
   newPostsCount: number;
-  industry: string;
-  scope: 'industry' | 'all';
-  onScopeChange: (s: 'industry' | 'all') => void;
 }) {
   return (
     <View style={styles.header}>
@@ -120,32 +107,23 @@ function Header({
           {me?.name ? `, ${me.name.split(' ')[0]}` : ''}
         </Text>
         <Text allowFontScaling={false} style={[type.body, { marginTop: 2 }]}>
-          {pluralizeNewPosts(newPostsCount, industry || 'bransjen din')}
+          {pluralizeNewPosts(newPostsCount)}
         </Text>
       </View>
-
-      {industry ? (
-        <View style={{ marginTop: 14 }}>
-          <SegmentedToggle
-            value={scope}
-            options={[
-              { value: 'industry', label: `For ${industry.toLowerCase()}` },
-              { value: 'all', label: 'Alle' },
-            ]}
-            onChange={(v) => onScopeChange(v as 'industry' | 'all')}
-          />
-        </View>
-      ) : null}
     </View>
   );
 }
 
 function PostCard({
   post,
+  viewerCompanyId,
+  viewerTagIds,
   onPress,
   onBookmark,
 }: {
   post: FeedPost;
+  viewerCompanyId: string | null;
+  viewerTagIds: string[];
   onPress: () => void;
   onBookmark: () => void;
 }) {
@@ -190,6 +168,13 @@ function PostCard({
             )}
           </Pressable>
         </View>
+        <ScopeBadges
+          everyone={post.everyone}
+          companies={post.companies}
+          tags={post.tags}
+          viewerCompanyId={viewerCompanyId}
+          viewerTagIds={viewerTagIds}
+        />
         <Text allowFontScaling={false} style={[type.cardTitle, { marginBottom: 8 }]}>
           {post.title}
         </Text>
@@ -201,13 +186,12 @@ function PostCard({
   );
 }
 
-function EmptyState({ industry }: { industry: string }) {
+function EmptyState() {
   return (
     <View style={styles.empty}>
       <Text allowFontScaling={false} style={type.cardTitle}>Ingen innlegg enda</Text>
       <Text allowFontScaling={false} style={[type.body, { marginTop: 6, textAlign: 'center' }]}>
-        Nye innlegg dukker opp her når Resolvd publiserer dem
-        {industry ? ` for ${industry.toLowerCase()}` : ''}.
+        Nye innlegg dukker opp her når Resolvd publiserer dem.
       </Text>
     </View>
   );

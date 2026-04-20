@@ -1,17 +1,15 @@
-import { useState } from 'react';
-import { Alert, View, Text, Pressable, StyleSheet, Modal, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
-import { ChevronRight, X } from 'lucide-react-native';
+import { Alert, View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
+import { ChevronRight } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { ScreenContainer, Card, Avatar, Button, SectionLabel, ProgressBar, ErrorBoundary } from '@/components';
+import { ScreenContainer, Card, Avatar, SectionLabel, ErrorBoundary } from '@/components';
 import { colors, layout, spacing, radii, borders } from '@/theme/tokens';
 import { type, fontFamily } from '@/theme/typography';
 import { iconSizes, iconStrokeWidth } from '@/theme/icons';
 import {
-  useMe, useStats, useSolutions, useTeam, useInvite, useDeleteAccount,
-  type MeSolution, type TeamMember, type TeamInvitation, type Stats, type Me,
+  useMe, useStats, useSolutions, useTeam, useDeleteAccount,
+  type MeSolution, type TeamMember, type Stats, type Me,
 } from '@/lib/queries';
-import { ApiError } from '@/lib/api';
 import { signOut } from '@/lib/auth';
 import { lightHaptic, successHaptic, errorHaptic } from '@/lib/haptics';
 
@@ -39,8 +37,6 @@ function MinSideInner() {
 
   const anyError = !!(stats.error || solutions.error || team.error || me.error);
   const allLoading = me.isLoading && stats.isLoading && solutions.isLoading && team.isLoading;
-
-  const [showInvite, setShowInvite] = useState(false);
 
   if (anyError && allLoading) {
     return (
@@ -72,25 +68,14 @@ function MinSideInner() {
           </View>
         )}
 
-        <ActivitySection
-          stats={stats.data}
-          lessonsCompleted={stats.data?.lessonsCompleted ?? 0}
-          lessonsTotal={stats.data?.aiSkolenTotal ?? 0}
-        />
+        <ActivitySection stats={stats.data} />
 
         <SolutionsSection solutions={solutions.data?.solutions ?? []} loading={solutions.isLoading} />
 
-        <TeamSection
-          members={team.data?.members ?? []}
-          invitations={team.data?.invitations ?? []}
-          canInvite={team.data?.canInvite ?? false}
-          onInvite={() => setShowInvite(true)}
-        />
+        <TeamSection members={team.data?.members ?? []} />
 
         <SettingsSection me={me.data} />
       </View>
-
-      <InviteModal visible={showInvite} onClose={() => setShowInvite(false)} />
     </ScreenContainer>
   );
 }
@@ -110,7 +95,7 @@ function Header({ me }: { me: Me | undefined }) {
           <Text allowFontScaling={false} style={type.greeting}>{me.name}</Text>
           {me.company ? (
             <Text allowFontScaling={false} style={[type.body, { marginTop: 2 }]}>
-              {me.company.name} · {me.company.industry}
+              {me.company.name}
             </Text>
           ) : null}
         </View>
@@ -121,15 +106,7 @@ function Header({ me }: { me: Me | undefined }) {
 
 // ─── Activity ────────────────────────────────────────────────────
 
-function ActivitySection({
-  stats,
-  lessonsCompleted,
-  lessonsTotal,
-}: {
-  stats?: Stats;
-  lessonsCompleted: number;
-  lessonsTotal: number;
-}) {
+function ActivitySection({ stats }: { stats?: Stats }) {
   return (
     <View style={{ marginBottom: 24 }}>
       <SectionLabel style={{ marginBottom: 10 }}>DIN AKTIVITET</SectionLabel>
@@ -137,19 +114,6 @@ function ActivitySection({
         <StatCard number={stats?.runsThisWeek ?? 0} label="Kjøringer denne uken" />
         <StatCard number={stats?.activeRequests ?? 0} label="Aktive forespørsler" />
         <StatCard number={stats?.lessonsCompleted ?? 0} label="Leksjoner fullført" />
-      </View>
-      <View style={{ marginTop: 14 }}>
-        <Card padding={14}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-            <Text allowFontScaling={false} style={[type.rowText, { fontFamily: fontFamily.medium }]}>
-              AI-skolen
-            </Text>
-            <Text allowFontScaling={false} style={type.progressCount}>
-              {lessonsTotal > 0 ? `${lessonsCompleted} / ${lessonsTotal}` : '—'}
-            </Text>
-          </View>
-          <ProgressBar value={lessonsTotal > 0 ? lessonsCompleted / lessonsTotal : 0} />
-        </Card>
       </View>
     </View>
   );
@@ -225,34 +189,10 @@ function formatSolutionSubtitle(s: MeSolution): string {
 
 // ─── Team ────────────────────────────────────────────────────────
 
-function TeamSection({
-  members,
-  invitations,
-  canInvite,
-  onInvite,
-}: {
-  members: TeamMember[];
-  invitations: TeamInvitation[];
-  canInvite: boolean;
-  onInvite: () => void;
-}) {
+function TeamSection({ members }: { members: TeamMember[] }) {
   return (
     <View style={{ marginBottom: 24 }}>
-      <View style={styles.teamHeader}>
-        <SectionLabel>TEAMET MITT</SectionLabel>
-        {canInvite ? (
-          <Pressable
-            onPress={() => {
-              lightHaptic();
-              onInvite();
-            }}
-            accessibilityRole="button"
-            accessibilityLabel="Inviter kollega"
-          >
-            <Text allowFontScaling={false} style={type.link}>Inviter kollega</Text>
-          </Pressable>
-        ) : null}
-      </View>
+      <SectionLabel style={{ marginBottom: 10 }}>TEAMET MITT</SectionLabel>
 
       <View style={{ gap: 8 }}>
         {members.map((m) => (
@@ -273,28 +213,6 @@ function TeamSection({
                 <Text allowFontScaling={false} style={[type.meta, { marginTop: 2 }]}>
                   {m.role === 'OWNER' ? 'Eier' : 'Ansatt'}
                   {m.isSelf ? ' · deg' : ''}
-                </Text>
-              </View>
-            </View>
-          </Card>
-        ))}
-
-        {invitations.map((inv) => (
-          <Card key={inv.id} padding={12} radius="listItem">
-            <View style={styles.memberRow}>
-              <Avatar initial="?" size={32} variant="pending" />
-              <View style={{ marginLeft: 12, flex: 1 }}>
-                <Text
-                  allowFontScaling={false}
-                  style={[type.rowText, { fontFamily: fontFamily.medium }]}
-                >
-                  {inv.invitedIdentifier}
-                </Text>
-                <Text
-                  allowFontScaling={false}
-                  style={[type.meta, { marginTop: 2, color: colors.amberBadgeText }]}
-                >
-                  Venter på godkjenning fra Resolvd
                 </Text>
               </View>
             </View>
@@ -325,7 +243,7 @@ function SettingsSection({ me }: { me: Me | undefined }) {
 
   function confirmDelete() {
     const body = isOwner
-      ? 'Er du sikker? Kontoen din blir fjernet. Hvis du er eneste medlem av bedriften, slettes også bedriftens data (meldinger, løsninger, invitasjoner). Hvis det er andre ansatte, går eier-rollen til eldste ansatte. Dette kan ikke angres.'
+      ? 'Er du sikker? Kontoen din blir fjernet. Hvis du er eneste medlem av bedriften, slettes også bedriftens data (meldinger, løsninger). Hvis det er andre ansatte, går eier-rollen til eldste ansatte. Dette kan ikke angres.'
       : 'Er du sikker? Kontoen din blir fjernet fra bedriften. Dine personlige data (fullførte leksjoner, bokmerker) slettes. Dette kan ikke angres.';
     Alert.alert('Slett konto', body, [
       { text: 'Avbryt', style: 'cancel' },
@@ -348,10 +266,9 @@ function SettingsSection({ me }: { me: Me | undefined }) {
   }
 
   const group1 = [
-    { label: 'Bedriftsinformasjon',   onPress: () => {} },
-    { label: 'Bransje og interesser', onPress: () => {} },
-    { label: 'Notifikasjoner',        onPress: () => {} },
-    { label: 'Språk',                 onPress: () => {} },
+    { label: 'Bedriftsinformasjon', onPress: () => {} },
+    { label: 'Notifikasjoner',      onPress: () => {} },
+    { label: 'Språk',               onPress: () => {} },
   ];
 
   return (
@@ -431,87 +348,6 @@ function SettingRow({
   );
 }
 
-// ─── Invite Modal ────────────────────────────────────────────────
-
-function InviteModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
-  const [identifier, setIdentifier] = useState('');
-  const invite = useInvite();
-  const [error, setError] = useState<string | null>(null);
-
-  async function onSubmit() {
-    if (!identifier.trim()) return;
-    setError(null);
-    try {
-      await invite.mutateAsync(identifier.trim());
-      successHaptic();
-      setIdentifier('');
-      onClose();
-    } catch (e) {
-      errorHaptic();
-      const msg = e instanceof ApiError ? e.messageNO : 'Kunne ikke sende invitasjon.';
-      setError(msg);
-    }
-  }
-
-  return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      presentationStyle="pageSheet"
-      onRequestClose={onClose}
-    >
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={{ flex: 1, backgroundColor: colors.bgPrimary }}
-      >
-        <View style={styles.modalHeader}>
-          <Text allowFontScaling={false} style={type.heroTitle}>Inviter kollega</Text>
-          <Pressable onPress={onClose} hitSlop={8} accessibilityLabel="Lukk" accessibilityRole="button">
-            <X size={iconSizes.modalClose} color={colors.textPrimary} strokeWidth={iconStrokeWidth} />
-          </Pressable>
-        </View>
-        <View style={{ padding: layout.screenPaddingH, flex: 1 }}>
-          <Text allowFontScaling={false} style={[type.bodyLarge, { marginBottom: spacing.between }]}>
-            Skriv inn e-post eller telefonnummer. Resolvd godkjenner invitasjonen før tilgangen aktiveres.
-          </Text>
-          <Text allowFontScaling={false} style={[type.sectionLabel, { marginBottom: 4 }]}>
-            E-POST ELLER TELEFON
-          </Text>
-          <TextInput
-            style={styles.input}
-            value={identifier}
-            onChangeText={setIdentifier}
-            placeholder="navn@bedrift.no eller +47 ..."
-            placeholderTextColor={colors.textSecondary}
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="default"
-            textContentType="emailAddress"
-            autoComplete="email"
-          />
-          {error ? (
-            <Text
-              allowFontScaling={false}
-              style={[type.body, { color: colors.amberBadgeText, marginTop: 8 }]}
-            >
-              {error}
-            </Text>
-          ) : null}
-
-          <View style={{ marginTop: 'auto', paddingVertical: 20 }}>
-            <Button
-              label="Send invitasjon"
-              disabled={!identifier.trim() || invite.isPending}
-              loading={invite.isPending}
-              onPress={onSubmit}
-            />
-          </View>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
-  );
-}
-
 const styles = StyleSheet.create({
   header: {
     paddingHorizontal: layout.screenPaddingH,
@@ -538,12 +374,6 @@ const styles = StyleSheet.create({
     padding: 12,
   },
   solutionRow: { flexDirection: 'row', alignItems: 'center' },
-  teamHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
   memberRow: { flexDirection: 'row', alignItems: 'center' },
   settingRow: {
     paddingHorizontal: 14,
@@ -553,25 +383,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   settingRowDivider: { borderBottomWidth: borders.default, borderBottomColor: colors.border },
-  modalHeader: {
-    paddingHorizontal: layout.screenPaddingH,
-    paddingTop: 24,
-    paddingBottom: 16,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderBottomWidth: borders.default,
-    borderBottomColor: colors.border,
-  },
-  input: {
-    backgroundColor: colors.surface,
-    borderWidth: borders.default,
-    borderColor: colors.border,
-    borderRadius: radii.listItem,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    fontFamily: fontFamily.regular,
-    fontSize: 14,
-    color: colors.textPrimary,
-  },
 });

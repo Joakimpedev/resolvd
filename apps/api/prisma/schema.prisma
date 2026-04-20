@@ -33,17 +33,13 @@ model User {
 
   accounts         Account[]
   sessions         Session[]
-  invitationsMade  Invitation[]     @relation("invitedBy")
   tags             UserTag[]
   postReads        PostRead[]
   postBookmarks    PostBookmark[]
   lessonProgress   LessonProgress[]
   comments         Comment[]
   requestsCreated  Request[]
-  projectMembers   ProjectMember[]
   authoredPosts    Post[]           @relation("authorPosts")
-  userLevel        UserLevel?
-  onboardingDone   Boolean          @default(false)
 
   @@index([companyId])
   @@index([deletedAt])
@@ -108,33 +104,25 @@ model Verification {
 model Company {
   id        String   @id @default(cuid())
   name      String
-  industry  String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   users       User[]
-  projects    Project[]
-  invitations Invitation[]
   requests    Request[]
   solutions   Solution[]
+  postScope   Post[]    @relation("PostCompanies")
+  courseScope Course[]  @relation("CourseCompanies")
 
   @@index([name])
 }
 
 model Tag {
-  id   String  @id @default(cuid())
-  name String  @unique
-  kind TagKind @default(INDUSTRY)
+  id   String @id @default(cuid())
+  name String @unique
 
-  users UserTag[]
-  posts Post[]    @relation("PostTags")
-
-  @@index([kind])
-}
-
-enum TagKind {
-  INDUSTRY
-  CUSTOM
+  users   UserTag[]
+  posts   Post[]    @relation("PostTags")
+  courses Course[]  @relation("CourseTags")
 }
 
 model UserTag {
@@ -147,58 +135,25 @@ model UserTag {
   @@index([tagId])
 }
 
-model Project {
-  id          String        @id @default(cuid())
-  companyId   String
-  company     Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  name        String
-  description String?
-  status      ProjectStatus @default(ACTIVE)
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-
-  members ProjectMember[]
-  posts   Post[]          @relation("ProjectPosts")
-
-  @@index([companyId])
-}
-
-enum ProjectStatus {
-  ACTIVE
-  COMPLETED
-  ARCHIVED
-}
-
-model ProjectMember {
-  projectId String
-  userId    String
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  addedAt   DateTime @default(now())
-
-  @@id([projectId, userId])
-  @@index([userId])
-}
-
 model Post {
-  id               String       @id @default(cuid())
+  id               String     @id @default(cuid())
   kind             PostKind
-  scopeType        ScopeType
-  projectId        String?
-  project          Project?     @relation("ProjectPosts", fields: [projectId], references: [id], onDelete: Cascade)
-  tags             Tag[]        @relation("PostTags")
+  everyone         Boolean    @default(false)
+  companies        Company[]  @relation("PostCompanies")
+  tags             Tag[]      @relation("PostTags")
   title            String
-  body             String       @db.Text
+  body             String     @db.Text
   category         String?
   readingMinutes   Int?
-  lessonLevel      LessonLevel?
-  lessonOrder      Int?
-  commentsEnabled  Boolean      @default(false)
+  moduleId         String?
+  module           Module?    @relation(fields: [moduleId], references: [id], onDelete: SetNull)
+  moduleOrder      Int?
+  commentsEnabled  Boolean    @default(false)
   publishedAt      DateTime?
   authorUserId     String
-  author           User         @relation("authorPosts", fields: [authorUserId], references: [id])
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @updatedAt
+  author           User       @relation("authorPosts", fields: [authorUserId], references: [id])
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
 
   reads     PostRead[]
   bookmarks PostBookmark[]
@@ -206,9 +161,7 @@ model Post {
   comments  Comment[]
 
   @@index([kind, publishedAt])
-  @@index([lessonLevel, lessonOrder])
-  @@index([projectId])
-  @@index([scopeType])
+  @@index([moduleId, moduleOrder])
   @@index([authorUserId])
 }
 
@@ -219,16 +172,32 @@ enum PostKind {
   BROADCAST
 }
 
-enum ScopeType {
-  GLOBAL
-  TAG
-  PROJECT
+model Course {
+  id          String    @id @default(cuid())
+  title       String
+  description String?
+  coverImage  String?
+  everyone    Boolean   @default(false)
+  companies   Company[] @relation("CourseCompanies")
+  tags        Tag[]     @relation("CourseTags")
+  modules     Module[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([title])
 }
 
-enum LessonLevel {
-  BEGINNER
-  INTER
-  ADVANCED
+model Module {
+  id        String   @id @default(cuid())
+  courseId  String
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  title     String
+  order     Int
+  lessons   Post[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([courseId, order])
 }
 
 model PostRead {
@@ -262,13 +231,6 @@ model LessonProgress {
 
   @@id([userId, postId])
   @@index([postId])
-}
-
-model UserLevel {
-  userId String      @id
-  level  LessonLevel
-  setAt  DateTime    @default(now())
-  user   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Comment {
@@ -333,28 +295,4 @@ model SolutionUsage {
   usedAt     DateTime @default(now())
 
   @@index([solutionId, usedAt])
-}
-
-model Invitation {
-  id                 String             @id @default(cuid())
-  companyId          String
-  company            Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  invitedIdentifier  String
-  invitedByUserId    String
-  invitedBy          User               @relation("invitedBy", fields: [invitedByUserId], references: [id])
-  status             InvitationStatus   @default(PENDING)
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
-  resolvedAt         DateTime?
-  resolvedByAdminId  String?
-
-  @@index([companyId, status])
-  @@index([invitedIdentifier])
-}
-
-enum InvitationStatus {
-  PENDING
-  APPROVED
-  REJECTED
-  REDEEMED
 }

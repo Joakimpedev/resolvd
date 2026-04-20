@@ -9,11 +9,12 @@ export type Me = {
   name: string;
   avatarInitial: string;
   role: 'ADMIN' | 'OWNER' | 'EMPLOYEE';
-  company: { id: string; name: string; industry: string } | null;
-  tags: { id: string; name: string; kind: 'INDUSTRY' | 'CUSTOM' }[];
-  onboardingDone: boolean;
-  userLevel: 'BEGINNER' | 'INTER' | 'ADVANCED' | null;
+  company: { id: string; name: string } | null;
+  tags: { id: string; name: string }[];
 };
+
+export type ScopeCompany = { id: string; name: string };
+export type ScopeTag = { id: string; name: string };
 
 export type FeedPost = {
   id: string;
@@ -25,6 +26,9 @@ export type FeedPost = {
   publishedAt: string;
   isRead: boolean;
   isBookmarked: boolean;
+  everyone: boolean;
+  companies: ScopeCompany[];
+  tags: ScopeTag[];
 };
 
 export type RequestStatus = 'I_ARBEID' | 'VENTER_PA_DEG' | 'FERDIG';
@@ -38,7 +42,16 @@ export type UserRequest = {
   updatedAt: string;
 };
 
-export type Lesson = {
+export type CourseSummary = {
+  id: string;
+  title: string;
+  description: string | null;
+  coverImage: string | null;
+  totalCount: number;
+  completedCount: number;
+};
+
+export type CourseLesson = {
   id: string;
   title: string;
   readingMinutes: number | null;
@@ -48,18 +61,27 @@ export type Lesson = {
   isLocked: boolean;
 };
 
-export type LessonsResponse = {
-  lessons: Lesson[];
-  level: 'BEGINNER' | 'INTER' | 'ADVANCED';
+export type CourseModule = {
+  id: string;
+  title: string;
+  order: number;
+  lessons: CourseLesson[];
+};
+
+export type CourseDetail = {
+  id: string;
+  title: string;
+  description: string | null;
+  coverImage: string | null;
   totalCount: number;
   completedCount: number;
+  modules: CourseModule[];
 };
 
 export type Stats = {
   runsThisWeek: number;
   activeRequests: number;
   lessonsCompleted: number;
-  aiSkolenTotal: number;
 };
 
 export type MeSolution = {
@@ -78,12 +100,6 @@ export type TeamMember = {
   isSelf: boolean;
 };
 
-export type TeamInvitation = {
-  id: string;
-  invitedIdentifier: string;
-  status: 'PENDING' | 'APPROVED';
-};
-
 // ─── Me ──────────────────────────────────────────────────────────
 
 export function useMe() {
@@ -95,10 +111,10 @@ export function useMe() {
 
 // ─── Feed ────────────────────────────────────────────────────────
 
-export function useFeedPosts(scope: 'industry' | 'all') {
+export function useFeedPosts() {
   return useQuery<{ posts: FeedPost[] }>({
-    queryKey: ['posts', 'ARTICLE', scope],
-    queryFn: () => api(`/api/posts?kind=ARTICLE&scope=${scope}`),
+    queryKey: ['posts', 'ARTICLE'],
+    queryFn: () => api('/api/posts?kind=ARTICLE'),
   });
 }
 
@@ -138,12 +154,20 @@ export function useCreateRequest() {
   });
 }
 
-// ─── Lessons ─────────────────────────────────────────────────────
+// ─── Courses (Lær) ───────────────────────────────────────────────
 
-export function useLessons() {
-  return useQuery<LessonsResponse>({
-    queryKey: ['lessons'],
-    queryFn: () => api('/api/lessons'),
+export function useCourses() {
+  return useQuery<{ courses: CourseSummary[] }>({
+    queryKey: ['courses'],
+    queryFn: () => api('/api/lessons/courses'),
+  });
+}
+
+export function useCourse(id: string | undefined) {
+  return useQuery<CourseDetail>({
+    queryKey: ['course', id],
+    queryFn: () => api(`/api/lessons/courses/${id}`),
+    enabled: !!id,
   });
 }
 
@@ -152,32 +176,9 @@ export function useCompleteLesson() {
   return useMutation<void, Error, string>({
     mutationFn: (id) => api(`/api/lessons/${id}/complete`, { method: 'POST' }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['lessons'] });
-      qc.invalidateQueries({ queryKey: ['me'] });
+      qc.invalidateQueries({ queryKey: ['courses'] });
+      qc.invalidateQueries({ queryKey: ['course'] });
       qc.invalidateQueries({ queryKey: ['stats'] });
-    },
-  });
-}
-
-export function useSetLevel() {
-  const qc = useQueryClient();
-  return useMutation<void, Error, 'BEGINNER' | 'INTER' | 'ADVANCED'>({
-    mutationFn: (level) => api('/api/me/level', { method: 'POST', body: { level } }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['me'] });
-      qc.invalidateQueries({ queryKey: ['lessons'] });
-      qc.invalidateQueries({ queryKey: ['stats'] });
-    },
-  });
-}
-
-export function useSkipOnboarding() {
-  const qc = useQueryClient();
-  return useMutation<void, Error, void>({
-    mutationFn: () => api('/api/me/skip-onboarding', { method: 'POST' }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['me'] });
-      qc.invalidateQueries({ queryKey: ['lessons'] });
     },
   });
 }
@@ -191,18 +192,10 @@ export const useSolutions = () =>
   useQuery<{ solutions: MeSolution[] }>({ queryKey: ['solutions'], queryFn: () => api('/api/me/solutions') });
 
 export const useTeam = () =>
-  useQuery<{ members: TeamMember[]; invitations: TeamInvitation[]; canInvite: boolean }>({
+  useQuery<{ members: TeamMember[] }>({
     queryKey: ['team'],
     queryFn: () => api('/api/me/team'),
   });
-
-export function useInvite() {
-  const qc = useQueryClient();
-  return useMutation<{ invitation: unknown }, Error, string>({
-    mutationFn: (identifier) => api('/api/me/invite', { method: 'POST', body: { identifier } }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['team'] }),
-  });
-}
 
 export function useDeleteAccount() {
   return useMutation<void, Error, void>({

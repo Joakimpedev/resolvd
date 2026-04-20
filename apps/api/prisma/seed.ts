@@ -17,19 +17,16 @@ function optionalEnv(name: string): string | undefined {
  * Seed is structured into three tiers:
  *
  *  1. ALWAYS seeded (production + dev)
- *     - The admin user (Marius) — required, bootstraps the admin dashboard
- *     - Minimal global content: 3 example articles + 12 lessons per level
- *       so the mobile app has something to show before Marius writes his own.
- *       Marius can edit/delete these via Directus once it's deployed.
+ *     - The admin user (Marius)
+ *     - A few global example articles and one sample Course with modules + lessons
+ *       so the mobile app has something to show before Marius creates his own.
  *
  *  2. OPTIONALLY seeded (only when SEED_DEMO_* env vars are present)
  *     - Demo company "Rørleggeren AS" + owner + employee
- *     - Demo requests, solutions with usage, pending invitation
- *     This is for local development only; do not set these on production.
+ *     - Demo requests and solutions with usage
  *
  *  3. NEVER seeded
- *     - Real customer users, companies, or content. Marius creates those
- *       through the admin dashboard once he has paying customers.
+ *     - Real customer users, companies, or content.
  */
 async function seed() {
   const isProd = process.env.NODE_ENV === 'production';
@@ -61,12 +58,12 @@ async function seed() {
   }
   const admin = await prisma.user.findUniqueOrThrow({ where: { email: adminEmail } });
 
-  // 2. Global articles (shown to everyone until Marius writes his own via admin)
+  // 2. Global articles
   const articleCount = await prisma.post.count({ where: { kind: 'ARTICLE' } });
   if (articleCount === 0) {
     await prisma.post.create({
       data: {
-        kind: 'ARTICLE', scopeType: 'GLOBAL',
+        kind: 'ARTICLE', everyone: true,
         title: 'Velkommen til Resolvd',
         body: 'Her får du oversikt over AI-løsningene vi bygger for deg, snakker med teamet vårt, og lærer hvordan AI kan jobbe for bedriften din.',
         category: 'Nyheter', readingMinutes: 2,
@@ -76,7 +73,7 @@ async function seed() {
     });
     await prisma.post.create({
       data: {
-        kind: 'ARTICLE', scopeType: 'GLOBAL',
+        kind: 'ARTICLE', everyone: true,
         title: 'Faktura-oppfølging som får betalt',
         body: 'Ferdig prompt du kan kopiere. Tilpasset norsk tone og småbedrifter.',
         category: 'Prompt-bibliotek', readingMinutes: 2,
@@ -86,7 +83,7 @@ async function seed() {
     });
     await prisma.post.create({
       data: {
-        kind: 'ARTICLE', scopeType: 'GLOBAL',
+        kind: 'ARTICLE', everyone: true,
         title: 'Hvordan bruke AI i hverdagen på jobb',
         body: 'En introduksjon til hvordan du kan spare tid med AI uten å bruke timer på å lære det.',
         category: 'Bransje-tips', readingMinutes: 3,
@@ -96,61 +93,59 @@ async function seed() {
     });
   }
 
-  // 6. Lessons (Phase 6 data) — INTER level as primary demo
-  const lessonCount = await prisma.post.count({ where: { kind: 'LESSON' } });
-  if (lessonCount === 0) {
-    const interLessons = [
-      { title: 'Hva AI faktisk kan og ikke kan', readingMinutes: 5 },
-      { title: 'Skriv prompts som faktisk funker', readingMinutes: 7 },
-      { title: 'AI for kundedialog og e-post', readingMinutes: 12 },
-      { title: 'Automatiser tilbudsskriving', readingMinutes: 9 },
-      { title: 'Bruk AI i hverdagen på jobb', readingMinutes: 8 },
-      { title: 'Datasikkerhet og AI — hva du må passe på', readingMinutes: 10 },
-      { title: 'AI for sosiale medier', readingMinutes: 6 },
-      { title: 'Lag ditt eget kunde-FAQ med AI', readingMinutes: 8 },
-      { title: 'Tidssparere for dokumentarbeid', readingMinutes: 11 },
-      { title: 'Når skal du ikke bruke AI?', readingMinutes: 7 },
-      { title: 'Bygg en enkel arbeidsflyt', readingMinutes: 14 },
-      { title: 'Videre steg og ressurser', readingMinutes: 5 },
+  // 3. Sample course with modules + lessons
+  const courseCount = await prisma.course.count();
+  if (courseCount === 0) {
+    const course = await prisma.course.create({
+      data: {
+        title: 'Kom i gang med AI',
+        description: 'En kort innføring i hvordan AI kan hjelpe deg i hverdagen.',
+        everyone: true,
+      },
+    });
+
+    const basicsModule = await prisma.module.create({
+      data: { courseId: course.id, title: 'Grunnleggende', order: 1 },
+    });
+    const basicsLessons = [
+      { title: 'Hva er AI egentlig?', readingMinutes: 4 },
+      { title: 'Slik bruker du ChatGPT første gang', readingMinutes: 5 },
+      { title: 'Din første prompt', readingMinutes: 6 },
     ];
-    for (let i = 0; i < interLessons.length; i++) {
-      const l = interLessons[i];
+    for (let i = 0; i < basicsLessons.length; i++) {
+      const l = basicsLessons[i];
       await prisma.post.create({
         data: {
-          kind: 'LESSON', scopeType: 'GLOBAL',
+          kind: 'LESSON', everyone: true,
           title: l.title,
           body: `Leksjonsinnhold for "${l.title}". (Redigeres via admin-siden.)`,
-          lessonLevel: 'INTER', lessonOrder: i + 1,
           readingMinutes: l.readingMinutes,
+          moduleId: basicsModule.id,
+          moduleOrder: i + 1,
           publishedAt: new Date(),
           authorUserId: admin.id,
         },
       });
     }
-    // Beginner + Advanced minimal seeds so level switching shows something
-    const basicLessons = ['Hva er AI egentlig?', 'Slik bruker du ChatGPT første gang', 'Første prompt du skriver'];
-    for (let i = 0; i < basicLessons.length; i++) {
+
+    const practicalModule = await prisma.module.create({
+      data: { courseId: course.id, title: 'Praktisk bruk', order: 2 },
+    });
+    const practicalLessons = [
+      { title: 'Skriv prompts som faktisk funker', readingMinutes: 7 },
+      { title: 'AI for kundedialog og e-post', readingMinutes: 10 },
+      { title: 'Automatiser tilbudsskriving', readingMinutes: 9 },
+    ];
+    for (let i = 0; i < practicalLessons.length; i++) {
+      const l = practicalLessons[i];
       await prisma.post.create({
         data: {
-          kind: 'LESSON', scopeType: 'GLOBAL',
-          title: basicLessons[i],
-          body: 'Leksjonsinnhold (redigeres via admin-siden).',
-          lessonLevel: 'BEGINNER', lessonOrder: i + 1,
-          readingMinutes: 4 + i,
-          publishedAt: new Date(),
-          authorUserId: admin.id,
-        },
-      });
-    }
-    const advLessons = ['Agent-arbeidsflyter', 'Fininnstilling av prompts', 'Integrering med egne systemer'];
-    for (let i = 0; i < advLessons.length; i++) {
-      await prisma.post.create({
-        data: {
-          kind: 'LESSON', scopeType: 'GLOBAL',
-          title: advLessons[i],
-          body: 'Leksjonsinnhold (redigeres via admin-siden).',
-          lessonLevel: 'ADVANCED', lessonOrder: i + 1,
-          readingMinutes: 10 + i,
+          kind: 'LESSON', everyone: true,
+          title: l.title,
+          body: `Leksjonsinnhold for "${l.title}". (Redigeres via admin-siden.)`,
+          readingMinutes: l.readingMinutes,
+          moduleId: practicalModule.id,
+          moduleOrder: i + 1,
           publishedAt: new Date(),
           authorUserId: admin.id,
         },
@@ -165,12 +160,17 @@ async function seed() {
   if (seedDemo && ownerEmail && ownerPassword && employeeEmail && employeePassword) {
     let company = await prisma.company.findFirst({ where: { name: 'Rørleggeren AS' } });
     if (!company) {
-      company = await prisma.company.create({ data: { name: 'Rørleggeren AS', industry: 'Rørleggere' } });
+      company = await prisma.company.create({ data: { name: 'Rørleggeren AS' } });
     }
-    const tag = await prisma.tag.upsert({
+    const plumbersTag = await prisma.tag.upsert({
       where: { name: 'Rørleggere' },
       update: {},
-      create: { name: 'Rørleggere', kind: 'INDUSTRY' },
+      create: { name: 'Rørleggere' },
+    });
+    const ownerTag = await prisma.tag.upsert({
+      where: { name: 'Eier' },
+      update: {},
+      create: { name: 'Eier' },
     });
 
     const existingOwner = await prisma.user.findUnique({ where: { email: ownerEmail } });
@@ -178,14 +178,19 @@ async function seed() {
       await auth.api.signUpEmail({ body: { email: ownerEmail, password: ownerPassword, name: 'Marius Lauvås' } });
       await prisma.user.update({
         where: { email: ownerEmail },
-        data: { role: UserRole.OWNER, avatarInitial: 'M', companyId: company.id },
+        data: { role: UserRole.OWNER, avatarInitial: 'M', companyId: company.id, plaintextPasswordNote: ownerPassword },
       });
     }
     const owner = await prisma.user.findUniqueOrThrow({ where: { email: ownerEmail } });
     await prisma.userTag.upsert({
-      where:  { userId_tagId: { userId: owner.id, tagId: tag.id } },
+      where:  { userId_tagId: { userId: owner.id, tagId: plumbersTag.id } },
       update: {},
-      create: { userId: owner.id, tagId: tag.id },
+      create: { userId: owner.id, tagId: plumbersTag.id },
+    });
+    await prisma.userTag.upsert({
+      where:  { userId_tagId: { userId: owner.id, tagId: ownerTag.id } },
+      update: {},
+      create: { userId: owner.id, tagId: ownerTag.id },
     });
 
     const existingEmp = await prisma.user.findUnique({ where: { email: employeeEmail } });
@@ -193,37 +198,43 @@ async function seed() {
       await auth.api.signUpEmail({ body: { email: employeeEmail, password: employeePassword, name: 'Jonas Berg' } });
       await prisma.user.update({
         where: { email: employeeEmail },
-        data: { role: UserRole.EMPLOYEE, avatarInitial: 'J', companyId: company.id },
+        data: { role: UserRole.EMPLOYEE, avatarInitial: 'J', companyId: company.id, plaintextPasswordNote: employeePassword },
       });
     }
-
-    // Industry-targeted demo articles
-    const industryArticleCount = await prisma.post.count({
-      where: { kind: 'ARTICLE', scopeType: 'TAG', tags: { some: { id: tag.id } } },
+    const employee = await prisma.user.findUniqueOrThrow({ where: { email: employeeEmail } });
+    await prisma.userTag.upsert({
+      where:  { userId_tagId: { userId: employee.id, tagId: plumbersTag.id } },
+      update: {},
+      create: { userId: employee.id, tagId: plumbersTag.id },
     });
-    if (industryArticleCount === 0) {
-      const a1 = await prisma.post.create({
+
+    // Tag-targeted demo articles
+    const plumberArticleCount = await prisma.post.count({
+      where: { kind: 'ARTICLE', tags: { some: { id: plumbersTag.id } } },
+    });
+    if (plumberArticleCount === 0) {
+      await prisma.post.create({
         data: {
-          kind: 'ARTICLE', scopeType: 'TAG',
+          kind: 'ARTICLE', everyone: false,
           title: 'Automatisk tilbud på 30 sekunder',
           body: 'Send inn jobbeskrivelse, få ferdig tilbud på mail. Bygget for rørleggere.',
           category: 'Ny løsning', readingMinutes: 3,
           publishedAt: new Date(),
           authorUserId: admin.id,
+          tags: { connect: [{ id: plumbersTag.id }] },
         },
       });
-      await prisma.post.update({ where: { id: a1.id }, data: { tags: { connect: [{ id: tag.id }] } } });
-      const a2 = await prisma.post.create({
+      await prisma.post.create({
         data: {
-          kind: 'ARTICLE', scopeType: 'TAG',
+          kind: 'ARTICLE', everyone: false,
           title: 'Slik sparer en rørlegger i Trondheim 8 timer/uke',
           body: 'Kort case-studie om en AI-assistent som håndterer tilbudsforespørsler mens du er på jobb.',
           category: 'Kundehistorie', readingMinutes: 5,
           publishedAt: new Date(),
           authorUserId: admin.id,
+          tags: { connect: [{ id: plumbersTag.id }] },
         },
       });
-      await prisma.post.update({ where: { id: a2.id }, data: { tags: { connect: [{ id: tag.id }] } } });
     }
 
     const reqCount = await prisma.request.count({ where: { companyId: company.id } });
@@ -253,18 +264,6 @@ async function seed() {
       for (let i = 0; i < 12; i++) {
         await prisma.solutionUsage.create({ data: { solutionId: epost.id, usedAt: new Date(now - 24 * 3600_000 + i * 1800_000) } });
       }
-    }
-
-    const invCount = await prisma.invitation.count({ where: { companyId: company.id } });
-    if (invCount === 0) {
-      await prisma.invitation.create({
-        data: {
-          companyId: company.id,
-          invitedByUserId: owner.id,
-          invitedIdentifier: 'kari@rorleggeren.no',
-          status: 'PENDING',
-        },
-      });
     }
 
     console.log(`Seed complete. Admin: ${adminEmail}. Demo owner: ${ownerEmail}. Demo employee: ${employeeEmail}.`);
