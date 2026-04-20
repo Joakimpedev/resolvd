@@ -11,7 +11,6 @@ import { fontFamily } from '@/theme/typography';
  * Tapping a link opens it in the system browser.
  */
 export function MarkdownView({ source }: { source: string }) {
-  const processed = preprocessTaskLists(source);
   return (
     <Markdown
       style={markdownStyles}
@@ -20,18 +19,9 @@ export function MarkdownView({ source }: { source: string }) {
         return false;
       }}
     >
-      {processed}
+      {source}
     </Markdown>
   );
-}
-
-/** Replace `- [ ]` / `- [x]` with unicode checkboxes so they render
- *  visually instead of as literal brackets. Completed items get their
- *  text wrapped in ~~strikethrough~~ for the crossed-out look. */
-function preprocessTaskLists(source: string): string {
-  return source
-    .replace(/^(\s*[-*]\s+)\[[xX]\]\s+(.*)$/gm, '$1☑ ~~$2~~')
-    .replace(/^(\s*[-*]\s+)\[\s\]\s+(.*)$/gm, '$1☐ $2');
 }
 
 const baseText = {
