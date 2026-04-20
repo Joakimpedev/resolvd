@@ -562,16 +562,21 @@ async function openCourseModal(id){
 }
 
 // ─── Module modal ─────────────────────────────────────────────
-function openModuleModal(courseId, moduleId, suggestedOrder){
-  const existing = (() => {
-    const course = state.courses.find(c => c.id === courseId);
-    return null; // module detail comes from /admin/courses/:id; we just use title + order for edit
-  })();
+async function openModuleModal(courseId, moduleId, suggestedOrder){
+  let existing = null;
+  if (moduleId) {
+    try {
+      const r = await api('/admin/courses/' + courseId);
+      existing = (r.course.modules || []).find(m => m.id === moduleId) || null;
+    } catch(e) { alert('Kunne ikke laste modul'); return; }
+  }
+  const initialTitle = existing ? existing.title : '';
+  const initialOrder = existing ? existing.order : (suggestedOrder || 1);
   openModal(
     '<h3>' + (moduleId ? 'Rediger modul' : 'Ny modul') + '</h3>' +
     '<form id="moduleForm">' +
-    '<label>Tittel</label><input name="title" required maxlength="200">' +
-    '<label>Rekkefølge</label><input name="order" type="number" min="1" value="' + (suggestedOrder || 1) + '" required>' +
+    '<label>Tittel</label><input name="title" required maxlength="200" value="' + esc(initialTitle) + '">' +
+    '<label>Rekkefølge</label><input name="order" type="number" min="1" value="' + initialOrder + '" required>' +
     '<div class="msg" id="moduleMsg"></div>' +
     '<footer>' +
       '<button type="button" class="btn secondary" data-close>Avbryt</button>' +
