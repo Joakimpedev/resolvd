@@ -4,7 +4,7 @@ import { auth } from '../auth.js';
 import { prisma } from '../db.js';
 import { authMiddleware } from '../middleware/auth.js';
 
-const cuidParam = z.object({ id: z.string().min(20).max(30) });
+const cuidParam = z.object({ id: z.string().min(10).max(64) });
 
 // ─── Unauthenticated admin routes (sign-in page) ──────────────────────
 export const adminPublicRoutes = new Hono();
@@ -170,7 +170,7 @@ const createUserSchema = z.object({
   password: z.string().min(8).max(128),
   name: z.string().min(1).max(100),
   avatarInitial: z.string().min(1).max(2),
-  companyId: z.string().min(20).max(30),
+  companyId: z.string().min(10).max(64),
   role: z.enum(['OWNER', 'EMPLOYEE']),
 });
 
@@ -225,7 +225,7 @@ adminRoutes.delete('/users/:id', async (c) => {
 
 // ─── Password reset ─────────────────────────────────────────────
 const resetPasswordSchema = z.object({
-  userId: z.string().min(20).max(30),
+  userId: z.string().min(10).max(64),
   newPassword: z.string().min(8).max(128),
 });
 adminRoutes.post('/users/reset-password', async (c) => {
@@ -307,7 +307,7 @@ adminRoutes.post('/requests/:id/status', async (c) => {
 
 // ─── Solution CRUD ─────────────────────────────────────────────
 const createSolutionSchema = z.object({
-  companyId: z.string().min(20).max(30),
+  companyId: z.string().min(10).max(64),
   name: z.string().min(1).max(100),
   subtitle: z.string().max(200).optional(),
   status: z.enum(['ACTIVE', 'INACTIVE']).default('ACTIVE'),
