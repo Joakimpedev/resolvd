@@ -1,8 +1,8 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ActivityIndicator, Modal, ScrollView } from 'react-native';
 import { ChevronRight, Check, X, ChevronDown, ChevronUp } from 'lucide-react-native';
 import { useFocusEffect } from 'expo-router';
-import { ScreenContainer, Card, ProgressBar, ErrorBoundary, ScopeBadges } from '@/components';
+import { ScreenContainer, Card, ProgressBar, ErrorBoundary, ScopeBadges, MarkdownView } from '@/components';
 import { colors, layout, spacing, borders } from '@/theme/tokens';
 import { type, fontFamily } from '@/theme/typography';
 import { iconSizes, iconStrokeWidth } from '@/theme/icons';
@@ -176,44 +176,62 @@ function CourseDetailModal({
 
 function CourseDetailContent({ course }: { course: CourseDetail }) {
   const pct = course.totalCount === 0 ? 0 : course.completedCount / course.totalCount;
+  const [openLesson, setOpenLesson] = useState<CourseLesson | null>(null);
 
   return (
-    <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
-      <View style={styles.detailHeader}>
-        <Text allowFontScaling={false} style={type.sectionLabel}>KURS</Text>
-        <Text allowFontScaling={false} style={[type.heroTitle, { marginTop: 4 }]}>{course.title}</Text>
-        {course.description ? (
-          <Text allowFontScaling={false} style={[type.bodyLarge, { marginTop: 8 }]}>{course.description}</Text>
-        ) : null}
-        <View style={{ marginTop: 14 }}>
-          <View style={styles.progressRow}>
-            <Text allowFontScaling={false} style={type.meta}>Din fremgang</Text>
-            <Text allowFontScaling={false} style={[type.meta, { color: colors.textPrimary }]}>
-              {course.completedCount} / {course.totalCount}
-            </Text>
-          </View>
-          <View style={{ marginTop: 6 }}>
-            <ProgressBar value={pct} />
+    <>
+      <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+        <View style={styles.detailHeader}>
+          <Text allowFontScaling={false} style={type.sectionLabel}>KURS</Text>
+          <Text allowFontScaling={false} style={[type.heroTitle, { marginTop: 4 }]}>{course.title}</Text>
+          {course.description ? (
+            <Text allowFontScaling={false} style={[type.bodyLarge, { marginTop: 8 }]}>{course.description}</Text>
+          ) : null}
+          <View style={{ marginTop: 14 }}>
+            <View style={styles.progressRow}>
+              <Text allowFontScaling={false} style={type.meta}>Din fremgang</Text>
+              <Text allowFontScaling={false} style={[type.meta, { color: colors.textPrimary }]}>
+                {course.completedCount} / {course.totalCount}
+              </Text>
+            </View>
+            <View style={{ marginTop: 6 }}>
+              <ProgressBar value={pct} />
+            </View>
           </View>
         </View>
-      </View>
 
-      {course.modules.length === 0 ? (
-        <View style={styles.empty}>
-          <Text allowFontScaling={false} style={type.body}>Ingen moduler i dette kurset enda.</Text>
-        </View>
-      ) : (
-        <View style={styles.moduleList}>
-          {course.modules.map((m, idx) => (
-            <ModuleBlock key={m.id} module={m} defaultExpanded={idx === 0} />
-          ))}
-        </View>
-      )}
-    </ScrollView>
+        {course.modules.length === 0 ? (
+          <View style={styles.empty}>
+            <Text allowFontScaling={false} style={type.body}>Ingen moduler i dette kurset enda.</Text>
+          </View>
+        ) : (
+          <View style={styles.moduleList}>
+            {course.modules.map((m, idx) => (
+              <ModuleBlock
+                key={m.id}
+                module={m}
+                defaultExpanded={idx === 0}
+                onOpenLesson={(l) => setOpenLesson(l)}
+              />
+            ))}
+          </View>
+        )}
+      </ScrollView>
+
+      <LessonReadModal lesson={openLesson} onClose={() => setOpenLesson(null)} />
+    </>
   );
 }
 
-function ModuleBlock({ module, defaultExpanded }: { module: CourseModule; defaultExpanded: boolean }) {
+function ModuleBlock({
+  module,
+  defaultExpanded,
+  onOpenLesson,
+}: {
+  module: CourseModule;
+  defaultExpanded: boolean;
+  onOpenLesson: (l: CourseLesson) => void;
+}) {
   const [expanded, setExpanded] = useState(defaultExpanded);
   const completed = module.lessons.filter(l => l.isCompleted).length;
 
@@ -241,78 +259,106 @@ function ModuleBlock({ module, defaultExpanded }: { module: CourseModule; defaul
       </Pressable>
       {expanded ? (
         <View style={{ marginTop: 8, gap: 8 }}>
-          {module.lessons.map(l => <LessonCard key={l.id} lesson={l} />)}
+          {module.lessons.map(l => (
+            <LessonCard key={l.id} lesson={l} onPress={() => onOpenLesson(l)} />
+          ))}
         </View>
       ) : null}
     </View>
   );
 }
 
-function LessonCard({ lesson }: { lesson: CourseLesson }) {
-  const complete = useCompleteLesson();
-
-  if (lesson.isCompleted) {
-    return (
-      <Card radius="card" padding={14}>
+function LessonCard({ lesson, onPress }: { lesson: CourseLesson; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={() => { lightHaptic(); onPress(); }}
+      accessibilityRole="button"
+      accessibilityLabel={`Leksjon: ${lesson.title}${lesson.isCompleted ? ', fullført' : ''}`}
+    >
+      <Card padding={14}>
         <View style={styles.lessonRow}>
-          <View style={styles.badgeCompleted}>
-            <Check size={iconSizes.lessonCheck} color={colors.bgPrimary} strokeWidth={iconStrokeWidth} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text allowFontScaling={false} style={[type.statusPill, { color: colors.accentGreen }]}>Fullført</Text>
-            <Text allowFontScaling={false} style={[type.lessonTitle, { marginTop: 2 }]}>{lesson.title}</Text>
-          </View>
-        </View>
-      </Card>
-    );
-  }
-
-  if (lesson.isLocked) {
-    return (
-      <View style={{ opacity: 0.6 }}>
-        <Card padding={14}>
-          <View style={styles.lessonRow}>
+          {lesson.isCompleted ? (
+            <View style={styles.badgeCompleted}>
+              <Check size={iconSizes.lessonCheck} color={colors.bgPrimary} strokeWidth={iconStrokeWidth} />
+            </View>
+          ) : (
             <View style={styles.badgeLocked}>
               <Text allowFontScaling={false} style={styles.badgeNumText}>{lesson.order}</Text>
             </View>
-            <View style={{ flex: 1 }}>
-              <Text allowFontScaling={false} style={[type.statusPill, { color: colors.textSecondary }]}>
-                Låst{lesson.readingMinutes ? ` · ${lesson.readingMinutes} min` : ''}
-              </Text>
-              <Text allowFontScaling={false} style={[type.lessonTitle, { marginTop: 2 }]}>{lesson.title}</Text>
-            </View>
-          </View>
-        </Card>
-      </View>
-    );
-  }
-
-  return (
-    <Pressable
-      onPress={() => {
-        lightHaptic();
-        complete.mutate(lesson.id, { onSuccess: () => successHaptic() });
-      }}
-      accessibilityRole="button"
-      accessibilityLabel={`Neste leksjon: ${lesson.title}`}
-    >
-      <Card selected padding={14}>
-        <View style={styles.lessonRow}>
-          <View style={styles.badgeNext}>
-            <Text allowFontScaling={false} style={[styles.badgeNumText, { color: colors.bgPrimary }]}>
-              {lesson.order}
-            </Text>
-          </View>
+          )}
           <View style={{ flex: 1 }}>
-            <Text allowFontScaling={false} style={[type.statusPill, { color: colors.accentGreen }]}>
-              Neste{lesson.readingMinutes ? ` · ${lesson.readingMinutes} min` : ''}
+            <Text
+              allowFontScaling={false}
+              style={[
+                type.statusPill,
+                { color: lesson.isCompleted ? colors.accentGreen : colors.textSecondary },
+              ]}
+            >
+              {lesson.isCompleted ? 'Fullført' : 'Ikke lest'}
+              {lesson.readingMinutes ? ` · ${lesson.readingMinutes} min` : ''}
             </Text>
-            <Text allowFontScaling={false} style={[type.lessonTitle, { marginTop: 2 }]}>{lesson.title}</Text>
+            <Text allowFontScaling={false} style={[type.lessonTitle, { marginTop: 2 }]}>
+              {lesson.title}
+            </Text>
           </View>
-          <ChevronRight size={iconSizes.chevron} color={colors.accentGreen} strokeWidth={iconStrokeWidth} />
+          <ChevronRight size={iconSizes.chevron} color={colors.textSecondary} strokeWidth={iconStrokeWidth} />
         </View>
       </Card>
     </Pressable>
+  );
+}
+
+function LessonReadModal({
+  lesson,
+  onClose,
+}: {
+  lesson: CourseLesson | null;
+  onClose: () => void;
+}) {
+  const complete = useCompleteLesson();
+  const lessonId = lesson?.id;
+  const wasCompleted = lesson?.isCompleted ?? false;
+
+  // Mark as complete on open if not already
+  useEffect(() => {
+    if (lessonId && !wasCompleted) {
+      complete.mutate(lessonId, { onSuccess: () => successHaptic() });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lessonId]);
+
+  return (
+    <Modal
+      visible={!!lesson}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={onClose}
+    >
+      <View style={{ flex: 1, backgroundColor: colors.bgPrimary }}>
+        <View style={styles.modalHeader}>
+          <Pressable
+            onPress={onClose}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Lukk"
+            style={styles.closeBtn}
+          >
+            <X size={iconSizes.chevron} color={colors.textSecondary} strokeWidth={iconStrokeWidth} />
+          </Pressable>
+        </View>
+        {lesson ? (
+          <ScrollView contentContainerStyle={styles.lessonContent}>
+            <Text allowFontScaling={false} style={type.meta}>
+              {lesson.readingMinutes ? `${lesson.readingMinutes} min lesing` : 'Leksjon'}
+            </Text>
+            <Text allowFontScaling={false} style={[type.heroTitle, { marginTop: 6, marginBottom: 14 }]}>
+              {lesson.title}
+            </Text>
+            <MarkdownView source={lesson.body} />
+          </ScrollView>
+        ) : null}
+      </View>
+    </Modal>
   );
 }
 
@@ -383,6 +429,10 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: borders.default,
     borderColor: colors.border,
+  },
+  lessonContent: {
+    padding: layout.screenPaddingH,
+    paddingBottom: 40,
   },
   lessonRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   badgeNext: {

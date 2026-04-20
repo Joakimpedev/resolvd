@@ -57,11 +57,10 @@ export type CourseSummary = {
 export type CourseLesson = {
   id: string;
   title: string;
+  body: string;
   readingMinutes: number | null;
   order: number;
   isCompleted: boolean;
-  isNext: boolean;
-  isLocked: boolean;
 };
 
 export type CourseModule = {

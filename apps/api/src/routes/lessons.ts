@@ -120,43 +120,38 @@ lessonsRoutes.get('/courses/:id', async (c) => {
     : [];
   const completedSet = new Set(progress.map(p => p.postId));
 
-  // Flat ordered list to determine next / locked
-  const flat = course.modules.flatMap(m => m.lessons.map(l => ({ lessonId: l.id, moduleId: m.id })));
-  const firstIncompleteIdx = flat.findIndex(x => !completedSet.has(x.lessonId));
-
   const modulesOut = course.modules.map(m => ({
     id: m.id,
     title: m.title,
     order: m.order,
-    lessons: m.lessons.map(l => {
-      const idx = flat.findIndex(f => f.lessonId === l.id);
-      const isCompleted = completedSet.has(l.id);
-      const isNext = !isCompleted && idx === firstIncompleteIdx;
-      const isLocked = !isCompleted && !isNext;
-      return {
-        id: l.id,
-        title: l.title,
-        readingMinutes: l.readingMinutes,
-        order: l.moduleOrder ?? 0,
-        isCompleted,
-        isNext,
-        isLocked,
-      };
-    }),
+    lessons: m.lessons.map(l => ({
+      id: l.id,
+      title: l.title,
+      body: l.body,
+      readingMinutes: l.readingMinutes,
+      order: l.moduleOrder ?? 0,
+      isCompleted: completedSet.has(l.id),
+    })),
   }));
+
+  const totalLessons = course.modules.reduce((acc, m) => acc + m.lessons.length, 0);
+  const completedLessons = course.modules.reduce(
+    (acc, m) => acc + m.lessons.filter(l => completedSet.has(l.id)).length,
+    0,
+  );
 
   return c.json({
     id: course.id,
     title: course.title,
     description: course.description,
     coverImage: course.coverImage,
-    totalCount: flat.length,
-    completedCount: flat.filter(f => completedSet.has(f.lessonId)).length,
+    totalCount: totalLessons,
+    completedCount: completedLessons,
     modules: modulesOut,
   });
 });
 
-/** POST /lessons/:id/complete — mark a lesson complete (enforces scope + sequential unlock). */
+/** POST /lessons/:id/complete — mark a lesson complete (scope-gated, no order lock). */
 lessonsRoutes.post('/:id/complete', async (c) => {
   const parsed = idParam.safeParse({ id: c.req.param('id') });
   if (!parsed.success) return c.json({ error: 'Invalid id' }, 400);
@@ -172,16 +167,6 @@ lessonsRoutes.post('/:id/complete', async (c) => {
             include: {
               companies: { select: { id: true } },
               tags:      { select: { id: true } },
-              modules: {
-                orderBy: { order: 'asc' },
-                include: {
-                  lessons: {
-                    where: { kind: 'LESSON', publishedAt: { not: null, lte: new Date() } },
-                    orderBy: { moduleOrder: 'asc' },
-                    select: { id: true },
-                  },
-                },
-              },
             },
           },
         },
@@ -191,25 +176,9 @@ lessonsRoutes.post('/:id/complete', async (c) => {
   if (!lesson || lesson.kind !== 'LESSON' || !lesson.module) {
     return c.json({ error: 'Not a lesson' }, 404);
   }
-  const course = lesson.module.course;
 
   const scope = await getUserScope(userId);
-  if (!isVisible(course, scope)) return c.json({ error: 'Not found' }, 404);
-
-  // Sequential unlock check across the course's ordered lesson list
-  const orderedLessonIds = course.modules.flatMap(m => m.lessons.map(l => l.id));
-  const targetIdx = orderedLessonIds.indexOf(postId);
-  if (targetIdx === -1) return c.json({ error: 'Lesson not in course' }, 400);
-
-  if (targetIdx > 0) {
-    const priorIds = orderedLessonIds.slice(0, targetIdx);
-    const completedPrior = await prisma.lessonProgress.count({
-      where: { userId, postId: { in: priorIds } },
-    });
-    if (completedPrior < priorIds.length) {
-      return c.json({ error: 'Previous lessons not complete' }, 400);
-    }
-  }
+  if (!isVisible(lesson.module.course, scope)) return c.json({ error: 'Not found' }, 404);
 
   await prisma.lessonProgress.upsert({
     where: { userId_postId: { userId, postId } },
