@@ -1,150 +1,98 @@
-import { View, Text, StyleSheet, TextStyle } from 'react-native';
+import { Linking } from 'react-native';
+import Markdown from 'react-native-markdown-display';
 import { colors } from '@/theme/tokens';
 import { fontFamily } from '@/theme/typography';
 
 /**
- * Lightweight markdown renderer. Handles:
- *   - `#`, `##`, `###` headings
- *   - `**bold**`, `*italic*`
- *   - blank-line paragraph separation
- *   - `-` or `*` bullet lists
- *   - `> quote`
- * Links and images are not supported; raw URLs render as plain text.
+ * Renders markdown. Uses react-native-markdown-display (CommonMark + GFM):
+ * headings h1–h6, paragraphs, bold, italic, strikethrough, inline code,
+ * fenced code blocks, ordered + unordered + task + nested lists, block
+ * quotes, tables, horizontal rules, links, images, autolinking.
+ * Tapping a link opens it in the system browser.
  */
 export function MarkdownView({ source }: { source: string }) {
-  const blocks = splitBlocks(source);
   return (
-    <View>
-      {blocks.map((b, i) => renderBlock(b, i))}
-    </View>
+    <Markdown
+      style={markdownStyles}
+      onLinkPress={(url) => {
+        Linking.openURL(url).catch(() => {});
+        return false;
+      }}
+    >
+      {source}
+    </Markdown>
   );
 }
 
-type Block =
-  | { type: 'h1' | 'h2' | 'h3' | 'paragraph' | 'quote'; text: string }
-  | { type: 'list'; items: string[] };
-
-function splitBlocks(source: string): Block[] {
-  const lines = source.replace(/\r\n/g, '\n').split('\n');
-  const blocks: Block[] = [];
-  let i = 0;
-  while (i < lines.length) {
-    const line = lines[i];
-    if (line.trim() === '') { i++; continue; }
-
-    if (/^###\s+/.test(line)) { blocks.push({ type: 'h3', text: line.replace(/^###\s+/, '') }); i++; continue; }
-    if (/^##\s+/.test(line))  { blocks.push({ type: 'h2', text: line.replace(/^##\s+/, '') });  i++; continue; }
-    if (/^#\s+/.test(line))   { blocks.push({ type: 'h1', text: line.replace(/^#\s+/, '') });   i++; continue; }
-
-    if (/^>\s+/.test(line)) {
-      const buf: string[] = [];
-      while (i < lines.length && /^>\s+/.test(lines[i])) {
-        buf.push(lines[i].replace(/^>\s+/, ''));
-        i++;
-      }
-      blocks.push({ type: 'quote', text: buf.join(' ') });
-      continue;
-    }
-
-    if (/^[-*]\s+/.test(line)) {
-      const items: string[] = [];
-      while (i < lines.length && /^[-*]\s+/.test(lines[i])) {
-        items.push(lines[i].replace(/^[-*]\s+/, ''));
-        i++;
-      }
-      blocks.push({ type: 'list', items });
-      continue;
-    }
-
-    // Paragraph — consume consecutive non-blank, non-heading lines
-    const para: string[] = [line];
-    i++;
-    while (i < lines.length && lines[i].trim() !== '' && !/^#{1,3}\s+/.test(lines[i]) && !/^[-*]\s+/.test(lines[i]) && !/^>\s+/.test(lines[i])) {
-      para.push(lines[i]);
-      i++;
-    }
-    blocks.push({ type: 'paragraph', text: para.join(' ') });
-  }
-  return blocks;
-}
-
-function renderBlock(b: Block, key: number) {
-  if (b.type === 'h1') return <Text key={key} style={styles.h1}>{renderInline(b.text)}</Text>;
-  if (b.type === 'h2') return <Text key={key} style={styles.h2}>{renderInline(b.text)}</Text>;
-  if (b.type === 'h3') return <Text key={key} style={styles.h3}>{renderInline(b.text)}</Text>;
-  if (b.type === 'quote') {
-    return (
-      <View key={key} style={styles.quote}>
-        <Text style={styles.quoteText}>{renderInline(b.text)}</Text>
-      </View>
-    );
-  }
-  if (b.type === 'list') {
-    return (
-      <View key={key} style={styles.list}>
-        {b.items.map((it, j) => (
-          <View key={j} style={styles.listItem}>
-            <Text style={styles.bullet}>•</Text>
-            <Text style={styles.listText}>{renderInline(it)}</Text>
-          </View>
-        ))}
-      </View>
-    );
-  }
-  return <Text key={key} style={styles.para}>{renderInline(b.text)}</Text>;
-}
-
-/** Parses **bold** and *italic* inline runs. */
-function renderInline(text: string): React.ReactNode {
-  const tokens = tokenize(text);
-  return tokens.map((t, i) => {
-    if (t.kind === 'bold') return <Text key={i} style={inlineBold}>{t.text}</Text>;
-    if (t.kind === 'italic') return <Text key={i} style={inlineItalic}>{t.text}</Text>;
-    return <Text key={i}>{t.text}</Text>;
-  });
-}
-
-type Token = { kind: 'text' | 'bold' | 'italic'; text: string };
-
-function tokenize(text: string): Token[] {
-  const out: Token[] = [];
-  const re = /(\*\*([^*]+)\*\*)|(\*([^*]+)\*)/g;
-  let last = 0;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(text)) !== null) {
-    if (m.index > last) out.push({ kind: 'text', text: text.slice(last, m.index) });
-    if (m[2] !== undefined) out.push({ kind: 'bold', text: m[2] });
-    else if (m[4] !== undefined) out.push({ kind: 'italic', text: m[4] });
-    last = re.lastIndex;
-  }
-  if (last < text.length) out.push({ kind: 'text', text: text.slice(last) });
-  return out;
-}
-
-const baseText: TextStyle = {
+const baseText = {
   fontFamily: fontFamily.regular,
   fontSize: 15,
   lineHeight: 22,
   color: colors.textPrimary,
 };
 
-const inlineBold: TextStyle = { fontFamily: fontFamily.medium, fontWeight: '700' };
-const inlineItalic: TextStyle = { fontStyle: 'italic' };
-
-const styles = StyleSheet.create({
-  h1: { fontFamily: fontFamily.medium, fontSize: 22, lineHeight: 28, color: colors.textPrimary, marginTop: 14, marginBottom: 8 },
-  h2: { fontFamily: fontFamily.medium, fontSize: 18, lineHeight: 24, color: colors.textPrimary, marginTop: 12, marginBottom: 6 },
-  h3: { fontFamily: fontFamily.medium, fontSize: 16, lineHeight: 22, color: colors.textPrimary, marginTop: 10, marginBottom: 4 },
-  para: { ...baseText, marginBottom: 10 },
-  list: { marginBottom: 10 },
-  listItem: { flexDirection: 'row', marginBottom: 4 },
-  bullet: { ...baseText, marginRight: 8, width: 12 },
-  listText: { ...baseText, flex: 1 },
-  quote: {
+const markdownStyles = {
+  body:           baseText,
+  paragraph:      { ...baseText, marginTop: 0, marginBottom: 10 },
+  heading1:       { fontFamily: fontFamily.medium, fontSize: 24, lineHeight: 30, color: colors.textPrimary, marginTop: 16, marginBottom: 10 },
+  heading2:       { fontFamily: fontFamily.medium, fontSize: 20, lineHeight: 26, color: colors.textPrimary, marginTop: 14, marginBottom: 8 },
+  heading3:       { fontFamily: fontFamily.medium, fontSize: 17, lineHeight: 23, color: colors.textPrimary, marginTop: 12, marginBottom: 6 },
+  heading4:       { fontFamily: fontFamily.medium, fontSize: 15, lineHeight: 21, color: colors.textPrimary, marginTop: 10, marginBottom: 4 },
+  heading5:       { fontFamily: fontFamily.medium, fontSize: 14, lineHeight: 20, color: colors.textPrimary, marginTop: 10, marginBottom: 4 },
+  heading6:       { fontFamily: fontFamily.medium, fontSize: 13, lineHeight: 19, color: colors.textSecondary, marginTop: 10, marginBottom: 4, textTransform: 'uppercase' as const, letterSpacing: 0.5 },
+  strong:         { fontFamily: fontFamily.medium, fontWeight: '700' as const },
+  em:             { fontStyle: 'italic' as const },
+  s:              { textDecorationLine: 'line-through' as const, color: colors.textSecondary },
+  link:           { color: colors.accentGreen, textDecorationLine: 'underline' as const },
+  blockquote:     {
     borderLeftWidth: 3,
     borderLeftColor: colors.border,
     paddingLeft: 12,
+    paddingVertical: 2,
     marginBottom: 10,
+    backgroundColor: 'transparent',
   },
-  quoteText: { ...baseText, color: colors.textSecondary, fontStyle: 'italic' },
-});
+  code_inline:    {
+    fontFamily: 'Courier',
+    fontSize: 13,
+    backgroundColor: colors.surfaceRaised,
+    color: colors.textPrimary,
+    borderRadius: 4,
+    paddingHorizontal: 4,
+  },
+  code_block:     {
+    fontFamily: 'Courier',
+    fontSize: 13,
+    lineHeight: 19,
+    backgroundColor: colors.surfaceRaised,
+    color: colors.textPrimary,
+    padding: 12,
+    borderRadius: 6,
+    marginBottom: 10,
+    borderWidth: 0,
+  },
+  fence:          {
+    fontFamily: 'Courier',
+    fontSize: 13,
+    lineHeight: 19,
+    backgroundColor: colors.surfaceRaised,
+    color: colors.textPrimary,
+    padding: 12,
+    borderRadius: 6,
+    marginBottom: 10,
+    borderWidth: 0,
+  },
+  bullet_list:    { marginBottom: 10 },
+  ordered_list:   { marginBottom: 10 },
+  list_item:      { ...baseText, marginBottom: 4 },
+  bullet_list_icon:  { ...baseText, marginLeft: 0, marginRight: 8, lineHeight: 22 },
+  ordered_list_icon: { ...baseText, marginLeft: 0, marginRight: 8, lineHeight: 22 },
+  hr:             { backgroundColor: colors.border, height: 1, marginVertical: 14 },
+  table:          { borderWidth: 1, borderColor: colors.border, borderRadius: 6, marginBottom: 10, overflow: 'hidden' as const },
+  thead:          { backgroundColor: colors.surfaceRaised },
+  tbody:          {},
+  th:             { flex: 1, padding: 8, borderRightWidth: 1, borderRightColor: colors.border, borderBottomWidth: 1, borderBottomColor: colors.border },
+  tr:             { flexDirection: 'row' as const, borderBottomWidth: 0 },
+  td:             { flex: 1, padding: 8, borderRightWidth: 1, borderRightColor: colors.border, borderBottomWidth: 1, borderBottomColor: colors.border },
+  image:          { borderRadius: 6, marginVertical: 8 },
+};
