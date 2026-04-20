@@ -25,7 +25,8 @@ function LaerInner() {
   const courses = useCourses();
   const [openCourseId, setOpenCourseId] = useState<string | null>(null);
 
-  useFocusEffect(useCallback(() => { courses.refetch(); }, [courses]));
+  const { refetch: refetchCourses } = courses;
+  useFocusEffect(useCallback(() => { refetchCourses(); }, [refetchCourses]));
 
   return (
     <ScreenContainer

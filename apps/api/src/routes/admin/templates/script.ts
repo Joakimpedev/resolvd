@@ -441,7 +441,13 @@ async function openArticleModal(id){
       '<div><label>Lesetid (minutter)</label><input name="readingMinutes" type="number" min="1" max="60" value="' + (existing?.readingMinutes ?? 3) + '"></div>' +
     '</div>' +
     renderScopePicker('art', initial) +
-    '<label>Innhold (markdown støttes)</label><textarea name="body" required>' + esc(existing?.body || '') + '</textarea>' +
+    '<label style="display:flex;justify-content:space-between;align-items:center">Innhold (markdown støttes)' +
+      '<label class="btn secondary sm" style="cursor:pointer;margin:0;text-transform:none;font-weight:500;letter-spacing:0;color:var(--accent)">' +
+        'Importer .md fil' +
+        '<input type="file" accept=".md,.markdown,text/markdown,text/plain" data-md-import style="display:none">' +
+      '</label>' +
+    '</label>' +
+    '<textarea name="body" required>' + esc(existing?.body || '') + '</textarea>' +
     '<div class="toggle-row">' +
       '<input type="checkbox" id="art-publishNow" ' + (existing ? (existing.publishedAt ? 'checked' : '') : 'checked') + '>' +
       '<label for="art-publishNow">Publisert</label>' +
@@ -598,7 +604,13 @@ async function openLessonModal(id, moduleId){
       '<div><label>Rekkefølge i modul</label><input name="moduleOrder" type="number" min="1" value="' + (existing?.moduleOrder || 1) + '" required></div>' +
       '<div><label>Lesetid (minutter)</label><input name="readingMinutes" type="number" min="1" max="120" value="' + (existing?.readingMinutes ?? 5) + '"></div>' +
     '</div>' +
-    '<label>Innhold (markdown støttes)</label><textarea name="body" required>' + esc(existing?.body || '') + '</textarea>' +
+    '<label style="display:flex;justify-content:space-between;align-items:center">Innhold (markdown støttes)' +
+      '<label class="btn secondary sm" style="cursor:pointer;margin:0;text-transform:none;font-weight:500;letter-spacing:0;color:var(--accent)">' +
+        'Importer .md fil' +
+        '<input type="file" accept=".md,.markdown,text/markdown,text/plain" data-md-import style="display:none">' +
+      '</label>' +
+    '</label>' +
+    '<textarea name="body" required>' + esc(existing?.body || '') + '</textarea>' +
     '<div class="toggle-row">' +
       '<input type="checkbox" id="lesson-publishNow" ' + (existing ? (existing.publishedAt ? 'checked' : '') : 'checked') + '>' +
       '<label for="lesson-publishNow">Publisert</label>' +
@@ -717,6 +729,17 @@ document.addEventListener('change', async (e) => {
   if (t.dataset.requestStatus) {
     try { await api('/admin/requests/' + t.dataset.requestStatus + '/status', { method: 'POST', body: JSON.stringify({ status: t.value }) }); await load(); }
     catch (err) { alert('Feil: ' + err.message); }
+  }
+  if (t.dataset.mdImport !== undefined && t.files && t.files[0]) {
+    const file = t.files[0];
+    const text = await file.text();
+    const form = t.closest('form');
+    const ta = form && form.querySelector('textarea[name="body"]');
+    if (ta) {
+      ta.value = text;
+      if (!form.title.value && file.name) form.title.value = file.name.replace(/\.(md|markdown|txt)$/i, '').replace(/[-_]/g, ' ');
+    }
+    t.value = '';
   }
 });
 

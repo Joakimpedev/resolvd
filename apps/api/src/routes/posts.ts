@@ -76,7 +76,7 @@ postsRoutes.get('/', async (c) => {
       id: p.id,
       kind: p.kind,
       title: p.title,
-      body: p.body.length > 400 ? p.body.slice(0, 400) + '…' : p.body,
+      body: p.body,
       category: p.category,
       readingMinutes: p.readingMinutes,
       publishedAt: p.publishedAt!.toISOString(),

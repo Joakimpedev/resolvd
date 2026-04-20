@@ -1,8 +1,8 @@
-import { useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable, ActivityIndicator } from 'react-native';
-import { Bookmark, BookmarkCheck } from 'lucide-react-native';
+import { useCallback, useState } from 'react';
+import { View, Text, StyleSheet, FlatList, Pressable, ActivityIndicator, Modal, ScrollView } from 'react-native';
+import { Bookmark, BookmarkCheck, X } from 'lucide-react-native';
 import { useFocusEffect } from 'expo-router';
-import { ScreenContainer, Logo, Avatar, Card, ErrorBoundary, ScopeBadges } from '@/components';
+import { ScreenContainer, Logo, Avatar, Card, ErrorBoundary, ScopeBadges, MarkdownView } from '@/components';
 import { colors, layout, spacing, borders } from '@/theme/tokens';
 import { type } from '@/theme/typography';
 import { iconSizes, iconStrokeWidth } from '@/theme/icons';
@@ -27,10 +27,23 @@ function FeedInner() {
   const greeting = useGreeting();
   const newPostsCount = feed.data?.posts.filter(p => !p.isRead).length ?? 0;
 
-  useFocusEffect(useCallback(() => { feed.refetch(); me.refetch(); }, [feed, me]));
+  const { refetch: refetchFeed } = feed;
+  const { refetch: refetchMe } = me;
+  useFocusEffect(useCallback(() => {
+    refetchFeed();
+    refetchMe();
+  }, [refetchFeed, refetchMe]));
 
   const viewerCompanyId = me.data?.company?.id ?? null;
   const viewerTagIds = me.data?.tags.map(t => t.id) ?? [];
+
+  const [openPostId, setOpenPostId] = useState<string | null>(null);
+  const openPost = feed.data?.posts.find(p => p.id === openPostId) ?? null;
+
+  const onOpenPost = (post: FeedPost) => {
+    setOpenPostId(post.id);
+    if (!post.isRead) markRead.mutate(post.id);
+  };
 
   return (
     <ScreenContainer
@@ -58,9 +71,7 @@ function FeedInner() {
               post={item}
               viewerCompanyId={viewerCompanyId}
               viewerTagIds={viewerTagIds}
-              onPress={() => {
-                if (!item.isRead) markRead.mutate(item.id);
-              }}
+              onPress={() => onOpenPost(item)}
               onBookmark={() => {
                 lightHaptic();
                 toggleBookmark.mutate(item.id);
@@ -72,6 +83,14 @@ function FeedInner() {
           onRefresh={() => feed.refetch()}
         />
       )}
+
+      <ArticleModal
+        post={openPost}
+        viewerCompanyId={viewerCompanyId}
+        viewerTagIds={viewerTagIds}
+        onClose={() => setOpenPostId(null)}
+        onBookmark={(id) => { lightHaptic(); toggleBookmark.mutate(id); }}
+      />
     </ScreenContainer>
   );
 }
@@ -190,6 +209,91 @@ function PostCard({
   );
 }
 
+// ─── Article detail modal ────────────────────────────────────────
+
+function ArticleModal({
+  post,
+  viewerCompanyId,
+  viewerTagIds,
+  onClose,
+  onBookmark,
+}: {
+  post: FeedPost | null;
+  viewerCompanyId: string | null;
+  viewerTagIds: string[];
+  onClose: () => void;
+  onBookmark: (id: string) => void;
+}) {
+  return (
+    <Modal
+      visible={!!post}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={onClose}
+    >
+      <View style={{ flex: 1, backgroundColor: colors.bgPrimary }}>
+        <View style={styles.modalHeader}>
+          <Pressable
+            onPress={onClose}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Lukk"
+            style={{ padding: 4 }}
+          >
+            <X size={iconSizes.chevron} color={colors.textSecondary} strokeWidth={iconStrokeWidth} />
+          </Pressable>
+          {post ? (
+            <Pressable
+              onPress={() => onBookmark(post.id)}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={post.isBookmarked ? 'Fjern bokmerke' : 'Legg til bokmerke'}
+              style={{ padding: 4 }}
+            >
+              {post.isBookmarked ? (
+                <BookmarkCheck
+                  size={iconSizes.bookmark}
+                  color={colors.accentGreen}
+                  strokeWidth={iconStrokeWidth}
+                  fill={colors.accentGreen}
+                />
+              ) : (
+                <Bookmark
+                  size={iconSizes.bookmark}
+                  color={colors.textSecondary}
+                  strokeWidth={iconStrokeWidth}
+                />
+              )}
+            </Pressable>
+          ) : null}
+        </View>
+
+        {post ? (
+          <ScrollView contentContainerStyle={styles.articleContent}>
+            <Text allowFontScaling={false} style={type.meta}>
+              {[post.category, post.readingMinutes ? `${post.readingMinutes} min lesing` : null]
+                .filter(Boolean)
+                .join(' · ')}
+            </Text>
+            <Text allowFontScaling={false} style={[type.heroTitle, { marginTop: 6, marginBottom: 12 }]}>
+              {post.title}
+            </Text>
+            <ScopeBadges
+              everyone={post.everyone}
+              companies={post.companies}
+              tags={post.tags}
+              viewerCompanyId={viewerCompanyId}
+              viewerTagIds={viewerTagIds}
+            />
+            <View style={{ height: 6 }} />
+            <MarkdownView source={post.body} />
+          </ScrollView>
+        ) : null}
+      </View>
+    </Modal>
+  );
+}
+
 function EmptyState() {
   return (
     <View style={styles.empty}>
@@ -248,4 +352,15 @@ const styles = StyleSheet.create({
   },
   loading: { paddingTop: 40, alignItems: 'center' },
   empty: { padding: 40, alignItems: 'center' },
+  modalHeader: {
+    paddingTop: 12,
+    paddingHorizontal: layout.screenPaddingH,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  articleContent: {
+    padding: layout.screenPaddingH,
+    paddingBottom: 40,
+  },
 });

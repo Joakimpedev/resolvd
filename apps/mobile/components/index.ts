@@ -11,3 +11,4 @@ export { ScreenHeader } from './ScreenHeader';
 export { ErrorBoundary } from './ErrorBoundary';
 export { TabBar } from './TabBar';
 export { ScopeBadges } from './ScopeBadges';
+export { MarkdownView } from './MarkdownView';
