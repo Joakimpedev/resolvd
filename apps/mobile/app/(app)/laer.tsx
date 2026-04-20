@@ -35,10 +35,10 @@ function LaerInner() {
       onRefresh={() => courses.refetch()}
     >
       <View style={styles.mainHeader}>
-        <Text allowFontScaling={false} style={type.sectionLabel}>KURS</Text>
-        <Text allowFontScaling={false} style={[type.heroTitle, { marginTop: 4 }]}>AI-skolen</Text>
+        <Text allowFontScaling={false} style={type.sectionLabel}>LÆRING</Text>
+        <Text allowFontScaling={false} style={[type.heroTitle, { marginTop: 4 }]}>Kurs</Text>
         <Text allowFontScaling={false} style={[type.body, { marginTop: 4 }]}>
-          Lær deg å bruke AI i hverdagen på jobb. Velg et kurs for å begynne.
+          Strukturerte kurs og leksjoner om emner som er relevante for jobben din.
         </Text>
       </View>
 
