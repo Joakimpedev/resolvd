@@ -259,11 +259,13 @@ function renderScopePicker(prefix, initial){
     '<label for="' + prefix + '-everyone">Vis til alle brukere</label>' +
     '<span class="hint">overstyrer filtrene under</span>' +
     '</div>' +
+    '<div class="scope-filters" id="' + prefix + '-filters">' +
     '<label>Begrens til bedrifter (valgfri)</label>' +
     '<div id="' + prefix + '-companies"></div>' +
     '<label>Begrens til tags (valgfri)</label>' +
     '<div id="' + prefix + '-tags"></div>' +
-    '<p class="small-muted" style="margin-top:8px">Når begge er satt: brukere må være i en av bedriftene OG ha en av tagsene.</p>';
+    '<p class="small-muted" style="margin-top:8px">Når begge er satt: brukere må være i en av bedriftene OG ha en av tagsene.</p>' +
+    '</div>';
 }
 
 function initScopePicker(prefix, initial){
@@ -271,6 +273,12 @@ function initScopePicker(prefix, initial){
     (o, rm) => companyChipHtml(o, rm));
   initChipPicker(prefix + '-tags', state.tags.map(t => ({id:t.id, name:t.name})), initial.tagIds || [],
     (o, rm) => tagChipHtml(o, rm));
+
+  const everyoneEl = document.getElementById(prefix + '-everyone');
+  const filtersEl  = document.getElementById(prefix + '-filters');
+  const sync = () => filtersEl.classList.toggle('disabled', everyoneEl.checked);
+  everyoneEl.addEventListener('change', sync);
+  sync();
 }
 function readScopePicker(prefix){
   return {

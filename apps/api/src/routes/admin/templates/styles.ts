@@ -87,6 +87,9 @@ label{display:block;margin:10px 0 4px;font-size:11px;color:var(--muted);font-wei
 .toggle-row label{margin:0;text-transform:none;font-size:13px;color:var(--text);font-weight:500;letter-spacing:0;cursor:pointer}
 .toggle-row .hint{margin-left:auto;font-size:11px;color:var(--muted)}
 
+.scope-filters.disabled{opacity:0.4;pointer-events:none}
+.scope-filters.disabled .chip-picker{background:var(--bg)}
+
 .course-view{padding:8px 0}
 .module-block{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px}
 .module-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
