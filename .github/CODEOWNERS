@@ -1,0 +1,22 @@
+# CODEOWNERS — GitHub auto-requests review from listed users for PRs touching matching paths.
+# Combined with branch protection "Require review from Code Owners", this means:
+# no PR can merge without @Joakimpedev's approval.
+# Docs: https://docs.github.com/en/repositories/managing-your-repositories-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default: every file requires review from @Joakimpedev
+* @Joakimpedev
+
+# Backend and infrastructure — DO NOT edit as the frontend collaborator.
+/apps/api/         @Joakimpedev
+/packages/shared/  @Joakimpedev
+/scripts/          @Joakimpedev
+/.github/          @Joakimpedev
+/railway.toml      @Joakimpedev
+/nixpacks.toml     @Joakimpedev
+/tsconfig.json     @Joakimpedev
+/package.json      @Joakimpedev
+/package-lock.json @Joakimpedev
+/.env.example      @Joakimpedev
+
+# Frontend — touch freely, but still requires @Joakimpedev review to merge.
+/apps/mobile/      @Joakimpedev
